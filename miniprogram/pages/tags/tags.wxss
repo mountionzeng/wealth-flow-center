@@ -1,0 +1,14 @@
+.tip { font-size: 22rpx; color: var(--t3); font-style: italic; margin-bottom: 20rpx; display: block; }
+.tag-list { display: flex; flex-direction: column; gap: 16rpx; }
+.tag-chip { padding: 24rpx 28rpx; cursor: pointer; }
+.tag-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10rpx; }
+.tag-badge { font-size: 20rpx; padding: 4rpx 14rpx; border-radius: 20rpx; font-weight: 600; }
+.tag-uses { font-size: 20rpx; color: var(--t4); }
+.tag-title { font-size: 30rpx; font-weight: 600; color: var(--text); display: block; }
+.tag-course { font-size: 22rpx; color: var(--t3); margin-top: 4rpx; display: block; }
+.tag-dur { font-size: 22rpx; color: var(--t3); margin-top: 6rpx; display: block; }
+
+.tag-preview { padding: 24rpx; margin-bottom: 4rpx; }
+.preview-title { font-size: 30rpx; font-weight: 600; color: var(--text); display: block; margin-top: 10rpx; }
+.preview-sub { font-size: 22rpx; color: var(--t3); display: block; margin-top: 4rpx; }
+.preview-dur { font-size: 24rpx; color: var(--gold2); font-weight: 600; display: block; margin-top: 8rpx; }

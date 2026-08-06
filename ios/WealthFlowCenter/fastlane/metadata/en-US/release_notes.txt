@@ -1,0 +1,1 @@
+Initial release with study task creation, Apple Calendar integration, local reminders, and recent monthly study time tracking.

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.mountion.wealthcenter4318</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Library/Developer/CommandLineTools/usr/bin/python3</string>
+    <string>/Users/yuandai/Library/Application Support/Berich/runtime/wealth_center_web.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/yuandai/Library/Application Support/Berich/runtime</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/wealthcenter4318.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/wealthcenter4318.stderr.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+    <!-- Manual and launchd starts use this same ignored, user-owned config path. -->
+    <key>BERICH_CONFIG_FILE</key>
+    <string>/Users/yuandai/Library/Application Support/Berich/config.env</string>
+  </dict>
+</dict>
+</plist>

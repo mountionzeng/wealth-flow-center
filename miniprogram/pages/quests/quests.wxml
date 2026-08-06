@@ -1,0 +1,194 @@
+<view class="page-wrap">
+
+  <!-- 顶栏 -->
+  <view class="topbar">
+    <view class="topbar-left">
+      <text class="topbar-name">学时账本</text>
+    </view>
+    <view class="topbar-stats">
+      <view class="tstat">
+        <text class="tstat-val">{{playerStats.streak}}</text>
+        <text class="tstat-lbl">天</text>
+      </view>
+      <view class="tstat">
+        <text class="tstat-val">{{playerStats.total_minutes}}</text>
+        <text class="tstat-lbl">分</text>
+      </view>
+      <view class="tstat">
+        <text class="tstat-val">Lv{{playerStats.level}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+
+  <!-- 任务列表 -->
+  <block wx:elif="{{quests.length > 0}}">
+
+    <!-- 进行中 / 即将开始 -->
+    <block wx:if="{{activeQuests.length > 0}}">
+      <view class="sh">
+        <text class="sh-text">进行中</text>
+        <view class="sh-line"/>
+      </view>
+      <block wx:for="{{activeQuests}}" wx:key="id">
+        <view class="gc qc {{item.card_class}}">
+          <view class="qc-accent" style="background:{{item.tc_color || '#9a7010'}}"/>
+          <view class="qc-top">
+            <text class="qc-badge" style="color:{{item.tc_color}};background:{{item.tc_bg}}">{{item.tc_label}}</text>
+            <view class="qc-titles">
+              <text class="qc-title">{{item.title}}</text>
+              <text wx:if="{{item.course_name}}" class="qc-course">{{item.course_name}}</text>
+            </view>
+          </view>
+          <view class="qc-meta">
+            <text class="qc-time">{{item.time_desc}}</text>
+            <view class="qc-rwds">
+              <text class="rwd rwd-xp">+{{item.reward_xp}} XP</text>
+              <text class="rwd rwd-w">+{{item.reward_wealth}} ◈</text>
+            </view>
+          </view>
+          <view class="qc-row2">
+            <text class="st-chip st-{{item.status}}">{{item.status_label}}</text>
+            <text class="cd cd-{{item.cd_cls}}">{{item.cd_text}}</text>
+          </view>
+          <view class="qc-actions">
+            <button class="btn-a btn-done" data-id="{{item.id}}" bindtap="completeQuest">✓ 完成</button>
+            <button class="btn-a btn-edit" data-quest="{{item}}" bindtap="openEdit">✎ 编辑</button>
+            <button class="btn-a btn-del"  data-id="{{item.id}}" bindtap="askDelete">✕ 删除</button>
+          </view>
+        </view>
+      </block>
+    </block>
+
+    <!-- 已完成 -->
+    <block wx:if="{{completedQuests.length > 0}}">
+      <view class="sh">
+        <text class="sh-text">已完成</text>
+        <view class="sh-line"/>
+      </view>
+      <block wx:for="{{completedQuests}}" wx:key="id">
+        <view class="gc qc qc-done">
+          <view class="qc-accent" style="background:{{item.tc_color || '#9a7010'}}"/>
+          <view class="qc-top">
+            <text class="qc-badge" style="color:{{item.tc_color}};background:{{item.tc_bg}}">{{item.tc_label}}</text>
+            <view class="qc-titles">
+              <text class="qc-title">{{item.title}}</text>
+              <text wx:if="{{item.course_name}}" class="qc-course">{{item.course_name}}</text>
+            </view>
+          </view>
+          <view class="qc-meta">
+            <text class="qc-time">{{item.time_desc}}</text>
+          </view>
+          <view class="qc-row2">
+            <text class="st-chip st-done">已完成</text>
+          </view>
+        </view>
+      </block>
+    </block>
+
+  </block>
+
+  <!-- 空状态 -->
+  <view wx:elif="{{!loading}}" class="empty">
+    <text>暂无任务</text>
+    <text class="empty-line">点击右下角 ＋ 创建</text>
+  </view>
+
+  <!-- FAB -->
+  <button class="fab" bindtap="openCreate">＋</button>
+
+  <!-- 创建/编辑表单 -->
+  <view wx:if="{{showForm}}" class="ovl" bindtap="closeForm">
+    <view class="sheet" catchtap="stopPropagation">
+      <view class="sh-handle"/>
+      <view class="sh-title">{{editId ? '编辑任务' : '新建任务'}}</view>
+
+      <view wx:if="{{!editId && formTags.length > 0}}" class="fg">
+        <view class="form-tag-head">
+          <text class="fl form-tag-title">常用标签</text>
+          <text class="form-tag-hint">点击快速填入</text>
+        </view>
+        <scroll-view scroll-x class="form-tag-scroll" enhanced show-scrollbar="{{false}}">
+          <view class="form-tag-row">
+            <view wx:for="{{formTags}}" wx:key="id"
+                  class="form-tag-chip"
+                  style="border-color:{{item.tc_color}};background:{{item.tc_bg}}"
+                  data-tag="{{item}}"
+                  bindtap="applyFormTag">
+              <text class="form-tag-badge" style="color:{{item.tc_color}}">{{item.tc_label}}</text>
+              <text class="form-tag-name">{{item.title}}</text>
+              <text class="form-tag-meta">{{item.meta}}</text>
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+
+      <view class="fg">
+        <text class="fl">任务名称</text>
+        <input class="fi" value="{{form.title}}" bindinput="onInputTitle" placeholder="输入任务名称"/>
+      </view>
+
+      <view class="fg">
+        <text class="fl">类型</text>
+        <picker mode="selector" range="{{taskTypeLabels}}" value="{{form.task_type_idx}}" bindchange="onPickType">
+          <view class="fsel-row">
+            <text>{{taskTypeLabels[form.task_type_idx]}}</text>
+            <text class="fsel-arrow">▾</text>
+          </view>
+        </picker>
+      </view>
+
+      <view class="fg">
+        <text class="fl">课程名称（选填）</text>
+        <input class="fi" value="{{form.course_name}}" bindinput="onInputCourse" placeholder="例如：高数、Python"/>
+      </view>
+
+      <view class="fg">
+        <text class="fl">开始时间</text>
+        <view class="frow">
+          <picker mode="date" value="{{form.start_date}}" bindchange="onPickStartDate">
+            <view class="fsel-row"><text>{{form.start_date}}</text><text class="fsel-arrow">▾</text></view>
+          </picker>
+          <picker mode="time" value="{{form.start_time}}" bindchange="onPickStartTime">
+            <view class="fsel-row"><text>{{form.start_time}}</text><text class="fsel-arrow">▾</text></view>
+          </picker>
+        </view>
+      </view>
+
+      <view class="fg">
+        <text class="fl">结束时间</text>
+        <view class="frow">
+          <picker mode="date" value="{{form.end_date}}" bindchange="onPickEndDate">
+            <view class="fsel-row"><text>{{form.end_date}}</text><text class="fsel-arrow">▾</text></view>
+          </picker>
+          <picker mode="time" value="{{form.end_time}}" bindchange="onPickEndTime">
+            <view class="fsel-row"><text>{{form.end_time}}</text><text class="fsel-arrow">▾</text></view>
+          </picker>
+        </view>
+      </view>
+
+      <button class="btn-sub" disabled="{{busy}}" bindtap="submitForm">
+        {{busy ? '保存中…' : (editId ? '保存修改' : '创建任务')}}
+      </button>
+      <button class="btn-can" bindtap="closeForm">取消</button>
+    </view>
+  </view>
+
+  <!-- 删除确认 -->
+  <view wx:if="{{confirmId}}" class="covl" bindtap="cancelDelete">
+    <view class="cbox" catchtap="stopPropagation">
+      <view class="c-ttl">确认删除</view>
+      <view class="c-body">删除后不可恢复，确认删除这个任务？</view>
+      <view class="c-btns">
+        <button class="c-yes" bindtap="confirmDelete">确认删除</button>
+        <button class="c-no" bindtap="cancelDelete">取消</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- Toast -->
+  <view wx:if="{{toast}}" class="toast {{toast.type === 's' ? 's' : 'e'}}">{{toast.msg}}</view>
+
+</view>

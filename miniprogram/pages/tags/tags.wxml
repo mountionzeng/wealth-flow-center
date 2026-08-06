@@ -1,0 +1,65 @@
+<view class="page-wrap">
+
+  <view class="sh" style="margin-top:8rpx">
+    <text class="sh-text">复习快捷标签</text>
+    <view class="sh-line"/>
+  </view>
+  <text class="tip">完成任务后自动生成，点击可快速创建复习</text>
+
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{tags.length === 0}}" class="empty">
+    <text>暂无标签</text>
+    <text class="empty-line">完成任务后自动生成</text>
+  </view>
+
+  <view class="tag-list">
+    <view wx:for="{{tags}}" wx:key="id"
+          class="gc tag-chip"
+          style="border-left: 6rpx solid {{item.tc_color || '#9a7010'}}"
+          data-tag="{{item}}"
+          bindtap="openTag">
+      <view class="tag-top">
+        <text class="tag-badge" style="color:{{item.tc_color}};background:{{item.tc_bg}}">{{item.tc_label}}</text>
+        <text class="tag-uses">×{{item.uses}}</text>
+      </view>
+      <text class="tag-title">{{item.title}}</text>
+      <text wx:if="{{item.course_name}}" class="tag-course">{{item.course_name}}</text>
+      <text class="tag-dur">{{item.duration_minutes}} 分钟</text>
+    </view>
+  </view>
+
+  <!-- 快速创建底部弹窗 -->
+  <view wx:if="{{showSheet}}" class="ovl" bindtap="closeSheet">
+    <view class="sheet" catchtap="stopPropagation">
+      <view class="sh-handle"/>
+      <view class="sh-title">快速创建复习</view>
+
+      <view wx:if="{{selectedTag}}" class="tag-preview gc">
+        <text class="tag-badge" style="color:{{selectedTag.tc_color}};background:{{selectedTag.tc_bg}}">{{selectedTag.tc_label}}</text>
+        <text class="preview-title">{{selectedTag.title}}</text>
+        <text wx:if="{{selectedTag.course_name}}" class="preview-sub">{{selectedTag.course_name}}</text>
+        <text class="preview-dur">{{selectedTag.duration_minutes}} 分钟</text>
+      </view>
+
+      <view class="fg" style="margin-top:24rpx">
+        <text class="fl">开始时间</text>
+        <view class="frow">
+          <picker mode="date" value="{{start_date}}" bindchange="onPickDate">
+            <view class="fsel-row"><text>{{start_date}}</text><text class="fsel-arrow">▾</text></view>
+          </picker>
+          <picker mode="time" value="{{start_time}}" bindchange="onPickTime">
+            <view class="fsel-row"><text>{{start_time}}</text><text class="fsel-arrow">▾</text></view>
+          </picker>
+        </view>
+      </view>
+
+      <button class="btn-sub" disabled="{{busy}}" bindtap="useTag">
+        {{busy ? '创建中…' : '创建任务'}}
+      </button>
+      <button class="btn-can" bindtap="closeSheet">取消</button>
+    </view>
+  </view>
+
+  <view wx:if="{{toast}}" class="toast {{toast.type === 's' ? 's' : 'e'}}">{{toast.msg}}</view>
+
+</view>

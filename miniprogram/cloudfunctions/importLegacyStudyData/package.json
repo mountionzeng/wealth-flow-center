@@ -1,0 +1,9 @@
+{
+  "name": "importLegacyStudyData",
+  "version": "1.0.0",
+  "description": "一次性导入本地 study_state.json 数据",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

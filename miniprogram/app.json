@@ -1,0 +1,50 @@
+{
+  "pages": [
+    "pages/quests/quests",
+    "pages/tags/tags",
+    "pages/charts/charts",
+    "pages/weekly/weekly"
+  ],
+  "tabBar": {
+    "color": "#a08448",
+    "selectedColor": "#c4960e",
+    "backgroundColor": "#fdf6df",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/quests/quests",
+        "text": "任务",
+        "iconPath": "assets/icons/quests.png",
+        "selectedIconPath": "assets/icons/quests-on.png"
+      },
+      {
+        "pagePath": "pages/tags/tags",
+        "text": "标签",
+        "iconPath": "assets/icons/tags.png",
+        "selectedIconPath": "assets/icons/tags-on.png"
+      },
+      {
+        "pagePath": "pages/charts/charts",
+        "text": "数据",
+        "iconPath": "assets/icons/charts.png",
+        "selectedIconPath": "assets/icons/charts-on.png"
+      },
+      {
+        "pagePath": "pages/weekly/weekly",
+        "text": "本周",
+        "iconPath": "assets/icons/weekly.png",
+        "selectedIconPath": "assets/icons/weekly-on.png"
+      }
+    ]
+  },
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#fdf6df",
+    "navigationBarTitleText": "学时账本",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#fdf6df"
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "cloud": true,
+  "sitemapLocation": "sitemap.json"
+}

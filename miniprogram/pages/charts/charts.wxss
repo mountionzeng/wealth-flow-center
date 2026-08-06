@@ -1,0 +1,2 @@
+.chart-card { padding: 24rpx 28rpx; margin-bottom: 4rpx; }
+.no-data { font-size: 24rpx; color: var(--t3); text-align: center; padding: 24rpx 0; }

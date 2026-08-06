@@ -1,0 +1,23 @@
+<view class="page-wrap">
+
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+
+  <block wx:elif="{{weeklyArr.length > 0}}">
+    <view wx:for="{{weeklyArr}}" wx:key="day" class="day-block">
+      <view class="day-hdr">
+        <text class="day-name">{{item.day}}</text>
+        <text class="day-date">{{item.date}}</text>
+      </view>
+      <view wx:if="{{item.tasks.length === 0}}" class="day-empty">暂无任务</view>
+      <view wx:for="{{item.tasks}}" wx:for-item="task" wx:key="id" class="day-task">
+        <text wx:if="{{task.time_range}}" class="day-time">{{task.time_range}}</text>
+        <text class="day-st {{task.status_cls}}">{{task.status_lbl}}</text>
+        <text wx:if="{{task.course_name}}" class="day-course">{{task.course_name}}</text>
+        <text class="day-ttl">{{task.title}}</text>
+      </view>
+    </view>
+  </block>
+
+  <view wx:elif="{{!loading}}" class="empty">本周暂无任务</view>
+
+</view>

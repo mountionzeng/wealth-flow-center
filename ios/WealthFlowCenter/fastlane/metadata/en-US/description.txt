@@ -1,0 +1,13 @@
+Wealth Flow Center is a study time management app that helps you turn learning time into visible long-term knowledge value.
+
+Create study tasks, organize them by course and type, add them to Apple Calendar, and use local reminders to keep your learning schedule on track. The app also shows recent study time and course-level progress so your effort becomes easier to see.
+
+Core features:
+- Create study tasks
+- Add tasks to Apple Calendar
+- Local study reminders
+- Track completed study time
+- View recent monthly study activity
+- Manage multiple study types
+
+The first version stores data locally on your device and does not require an account.

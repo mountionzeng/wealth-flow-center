@@ -1,0 +1,63 @@
+<view class="page-wrap">
+
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+
+  <block wx:else>
+
+    <!-- 每日时长 -->
+    <view class="sh" style="margin-top:8rpx">
+      <text class="sh-text">每日时长（近14天）</text>
+      <view class="sh-line"/>
+    </view>
+    <view class="gc chart-card">
+      <view wx:if="{{dayEntries.length === 0}}" class="no-data">暂无数据</view>
+      <view wx:for="{{dayEntries}}" wx:key="label" class="bar-row">
+        <text class="bar-lbl">{{item.label}}</text>
+        <view class="bar-track">
+          <view class="bar-fill" style="width:{{item.pct}}%;background:{{item.color}}"/>
+        </view>
+        <text class="bar-val">{{item.val}}m</text>
+      </view>
+    </view>
+
+    <!-- 按类型 -->
+    <view wx:if="{{typeEntries.length > 0}}">
+      <view class="sh">
+        <text class="sh-text">按类型</text>
+        <view class="sh-line"/>
+      </view>
+      <view class="gc chart-card">
+        <view wx:for="{{typeEntries}}" wx:key="label" class="bar-row">
+          <text class="bar-lbl">{{item.label}}</text>
+          <view class="bar-track">
+            <view class="bar-fill" style="width:{{item.pct}}%;background:{{item.color}}"/>
+          </view>
+          <text class="bar-val">{{item.val}}m</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 按课程 -->
+    <view wx:if="{{courseEntries.length > 0}}">
+      <view class="sh">
+        <text class="sh-text">按课程</text>
+        <view class="sh-line"/>
+      </view>
+      <view class="gc chart-card">
+        <view wx:for="{{courseEntries}}" wx:key="label" class="bar-row">
+          <text class="bar-lbl">{{item.label}}</text>
+          <view class="bar-track">
+            <view class="bar-fill" style="width:{{item.pct}}%;background:{{item.color}}"/>
+          </view>
+          <text class="bar-val">{{item.val}}m</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{dayEntries.length === 0 && typeEntries.length === 0}}" class="empty">
+      完成任务后这里会显示学习统计
+    </view>
+
+  </block>
+
+</view>

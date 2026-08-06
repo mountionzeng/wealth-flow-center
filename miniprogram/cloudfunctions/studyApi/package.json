@@ -1,0 +1,9 @@
+{
+  "name": "studyApi",
+  "version": "1.0.0",
+  "description": "学时账本 云函数",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}
