@@ -414,7 +414,58 @@ def _local_actions(facts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "traditional_culture": False,
             "origin": "local_rule",
         })
-    return actions[:3]
+    calendar = index.get("calendar.solar_term.current", {})
+    if calendar.get("status") in {"available", "stale"}:
+        actions.append({
+            "kind": "daily",
+            "title": "把今天的节气提醒变成一个小行动",
+            "detail": "先完成一件可在今天收尾的小事，再根据身体和天气反馈调整后续安排。",
+            "basis": "当前节气与今日的真实执行应相互校正",
+            "evidence_ids": ["calendar.solar_term.current"],
+            "observe": "记录完成后的精力、情绪和身体感受",
+            "uncertainty": "传统文化只提供观察角度，不能替代实际体验",
+            "traditional_culture": False,
+            "origin": "local_rule",
+        })
+    learning = index.get("history.learning.recent", {})
+    if learning.get("status") in {"available", "stale"}:
+        actions.append({
+            "kind": "learning",
+            "title": "用一段短学习保持节奏",
+            "detail": "选择一个已经在学习记录中出现的主题，完成一段短而明确的学习，再写下一句复盘。",
+            "basis": "沿用当前账户已有学习记录，不凭空增加目标",
+            "evidence_ids": ["history.learning.recent"],
+            "observe": "观察专注度和完成后的疲劳感",
+            "uncertainty": "历史摘要不等于今天的实时状态",
+            "traditional_culture": False,
+            "origin": "local_rule",
+        })
+    return actions[:4]
+
+
+def _local_culture(facts: List[Dict[str, Any]], question: str = "") -> Dict[str, Any]:
+    """Provide a useful, clearly bounded letter when no text model is available."""
+    index = {item["id"]: item for item in facts}
+    calendar_id = "calendar.solar_term.current"
+    calendar = index.get(calendar_id, {})
+    calendar_name = ((calendar.get("value") or {}).get("name") if isinstance(calendar.get("value"), dict) else None)
+    calendar_name = str(calendar_name or "今天的节气")
+    calendar_evidence = [calendar_id] if calendar.get("status") in {"available", "stale"} else []
+    bazi_evidence = ["bazi.pillars.visible"] if index.get("bazi.pillars.visible", {}).get("status") in {"available", "stale"} else []
+    base = calendar_evidence or bazi_evidence
+    if not base:
+        base = [next(iter(index), "bazi.pillars.visible")]
+    culture = {
+        "summary": {"text": f"今日以{calendar_name}作为观察背景。传统文化重视顺时而作；《周易》说“一阴一阳之谓道”，可以把它当作提醒：先观察真实状态，再决定今天的节奏。", "evidence_ids": base, "traditional_culture": True},
+        "clothing": {"text": "穿衣先以当前温度、风雨和个人体感为准，再用五行颜色作为审美与心境的轻量提示，不把颜色当作吉凶结论。", "evidence_ids": base, "traditional_culture": True},
+        "direction": {"text": "方位只适合用来选择采光、通风或散步路线。若需要转换状态，可选择自己觉得明亮、安静且安全的方向；《易经》所谓“穷则变，变则通”，重点在主动调整。", "evidence_ids": base, "traditional_culture": True},
+        "diet": {"text": "饮食以当季、清洁、适量为原则，结合现居地的天气和自己的消化感受调整；《遵生八笺》强调饮食关乎身命，今天不必追求复杂的进补。", "evidence_ids": base, "traditional_culture": True},
+        "do_avoid": {"text": "宜：做一件可完成、可复盘的小事。忌：把传统象征当成必须服从的命令，也不要在状态不明时做不可逆的重大决定。", "evidence_ids": base, "traditional_culture": True},
+    }
+    if question:
+        question_ids = ["user.question", *base]
+        culture["question"] = {"text": "关于你提出的事情，今天适合先收集信息、做小范围尝试并保留回旋余地；是否推进仍应以事实、能力和对方反馈为准。", "evidence_ids": question_ids, "traditional_culture": True}
+    return culture
 
 
 def generate_spring_wind(
@@ -478,9 +529,10 @@ def generate_spring_wind(
     external_facts = [
         fact for fact in (_normalize_external_fact(item) for item in snapshot.get("facts", [])) if fact
     ]
+    question_facts = [_fact("user.question", "user_input", question, "用户本次输入")] if question else []
     context = _safe_copy(request.get("context") if isinstance(request.get("context"), dict) else {})
     facts = _deduplicate_facts(
-        [*bazi_facts, *profile_facts, *calendar_facts, *external_facts, *_environment_fact_supplements(snapshot), *_history_facts(context)]
+        [*bazi_facts, *profile_facts, *calendar_facts, *external_facts, *question_facts, *_environment_fact_supplements(snapshot), *_history_facts(context)]
     )
 
     location_pending = snapshot.get("status") == "awaiting_confirmation"
@@ -488,9 +540,9 @@ def generate_spring_wind(
     actions: List[Dict[str, Any]] = []
     ai_status = "not_requested"
     if location_pending:
-        culture = {"status": "missing", "reason": "location_confirmation_required"}
+        culture = _local_culture(facts, question)
     elif not ai_categories:
-        culture = {"status": "missing", "reason": "ai_not_authorized"}
+        culture = _local_culture(facts, question)
         actions = _local_actions(facts)
     else:
         ai_facts = [
@@ -520,12 +572,12 @@ def generate_spring_wind(
             ai_status = "available"
         except AIProviderError as exc:
             ai_status = "missing"
-            culture = {"status": "missing", "reason": str(exc)}
+            culture = _local_culture(facts, question)
             actions = _local_actions(facts)
         except ValueError:
             ai_status = "invalid"
-            culture = {"status": "missing", "reason": "ai_output_failed_validation"}
-            actions = []
+            culture = _local_culture(facts, question)
+            actions = _local_actions(facts)
 
     if location_pending:
         status = "awaiting_confirmation"
