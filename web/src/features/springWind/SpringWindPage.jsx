@@ -6,7 +6,7 @@ import BaziMaterialInput from './BaziMaterialInput.jsx';
 import RecognizedProfile from './RecognizedProfile.jsx';
 import SavedProfileSummary from './SavedProfileSummary.jsx';
 import SpringWindReport from './SpringWindReport.jsx';
-import { reportIsCurrent, resolveSpringWindCities } from './springWindReportState.js';
+import { resolveSpringWindCities } from './springWindReportState.js';
 import { createSpringWindInputState, springWindInputReducer } from './springWindInputState.js';
 
 const initialSaved = dailyAPI => {
@@ -21,7 +21,9 @@ const locationLabel = place => [place?.name, place?.admin1, place?.country].filt
 
 export default function SpringWindPage({ dailyAPI, bridge, quests = [], notify }) {
   const saved = useMemo(() => initialSaved(dailyAPI), [dailyAPI]);
-  const savedReport = reportIsCurrent(saved.report, localDate()) ? saved.report : null;
+  // Keep the last local report visible after a refresh. Its own date is shown
+  // in the report header so an older result cannot be mistaken for today's data.
+  const savedReport = saved.report || null;
   const [daily, setDaily] = useState(() => dailyAPI.state());
   const [baziState, dispatchBazi] = useReducer(
     springWindInputReducer,
