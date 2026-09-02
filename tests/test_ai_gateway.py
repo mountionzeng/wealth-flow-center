@@ -214,8 +214,11 @@ class AIGatewayTests(unittest.TestCase):
         )
 
         self.assertEqual(report["status"], "partial")
-        self.assertEqual(report["culture"]["status"], "missing")
-        self.assertEqual(report["actions"], [])
+        self.assertEqual(report["metadata"]["ai_status"], "invalid")
+        self.assertIn("summary", report["culture"])
+        self.assertTrue(report["culture"]["summary"]["traditional_culture"])
+        self.assertTrue(report["actions"])
+        self.assertTrue(all(action["origin"] == "local_rule" for action in report["actions"]))
         self.assertIn("environment.weather.current", {fact["id"] for fact in report["facts"]})
         self.assertNotIn("model.temperature", {fact["id"] for fact in report["facts"]})
 
@@ -271,7 +274,9 @@ class AIGatewayTests(unittest.TestCase):
         weather = next(fact for fact in report["facts"] if fact["id"] == "environment.weather.current")
         self.assertEqual(weather["status"], "missing")
         self.assertIsNone(weather["value"])
-        self.assertEqual(report["culture"]["reason"], "provider_unavailable")
+        self.assertEqual(report["metadata"]["ai_status"], "missing")
+        self.assertIn("summary", report["culture"])
+        self.assertTrue(report["culture"]["summary"]["traditional_culture"])
         self.assertNotIn("正在下雨", json.dumps(report, ensure_ascii=False))
 
     @staticmethod
