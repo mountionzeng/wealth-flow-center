@@ -8,7 +8,7 @@ export const readBridgeCapability = (documentRef = globalThis.document) => {
 
 const errorFromPayload = (payload, status) => {
   const code = String(payload?.error || payload?.status || `http_${status}`);
-  const error = new Error(code);
+  const error = new Error(String(payload?.message || code));
   error.code = code;
   error.status = status;
   return error;
@@ -43,6 +43,7 @@ export const createLocalBridge = ({
 
   return {
     capability: () => request('/api/capability'),
+    legacyState: () => request('/api/state'),
     listCalendars: () => request('/api/calendar/calendars', { preserveCalendarStatus: true }),
     calendarHistory: calendars => request('/api/calendar/history', { method: 'POST', body: { calendars } }),
     writeCalendar: event => request('/api/calendar/events', { method: 'POST', body: event, preserveCalendarStatus: true }),
@@ -50,7 +51,13 @@ export const createLocalBridge = ({
     aiDisclosure: () => request('/api/ai/disclosure'),
     environmentDisclosure: () => request('/api/environment/disclosure'),
     searchCity: input => request('/api/environment/search', { method: 'POST', body: input }),
+    listObsidianVaults: () => request('/api/obsidian/vaults'),
+    loadObsidianTree: vaultId => request('/api/obsidian/tree', { method: 'POST', body: { vault_id: vaultId } }),
+    readObsidianNote: (vaultId, path) => request('/api/obsidian/read', { method: 'POST', body: { vault_id: vaultId, path } }),
+    writeObsidianNote: ({ vaultId, path, content, expectedHash }) => request('/api/obsidian/write', { method: 'POST', body: { vault_id: vaultId, path, content, expected_hash: expectedHash } }),
     dailyAdvice: input => request('/api/ai/daily-advice', { method: 'POST', body: input }),
+    refineKnowledge: input => request('/api/ai/knowledge-refine', { method: 'POST', body: input }),
+    generateKnowledgeCards: input => request('/api/ai/knowledge-cards', { method: 'POST', body: input }),
     springWind: input => request('/api/ai/spring-wind', { method: 'POST', body: input }),
     recognizeBazi: (bytes, mediaType) => request('/api/ai/recognize-bazi', { method: 'POST', body: bytes, contentType: mediaType }),
   };

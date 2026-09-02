@@ -12,6 +12,7 @@ const purposeLabels = {
   spring_wind_text: '问春风文本生成',
   environment: '城市环境查询',
   image_recognition: '图片识别',
+  knowledge_refine: '知识笔记增补',
 };
 
 export default function MyPage({ account, api, dailyAPI, bridge, onResolveProjection, projectionBusy, onImported, onLogout }) {
@@ -102,7 +103,7 @@ export default function MyPage({ account, api, dailyAPI, bridge, onResolveProjec
         </article>
         <article className="settings-panel privacy-panel">
           <p className="panel-number">05</p><h2>连接与隐私</h2>
-          <ul><li>身体感受不会写入 Calendar。</li><li>问春风报告不会保存到本地 Python 服务。</li><li>导入备份后需重新选择日历并重新同意 AI 传输。</li><li>清除站点数据会删除本地账户，请先备份。</li></ul>
+          <ul><li>身体感受不会写入 Calendar。</li><li>问春风报告不会保存到本地 Python 服务。</li><li>导入备份后需重新选择日历并重新同意 AI 传输。</li><li>Obsidian 原文件不会被修改，复习卡只保存本地链接。</li><li>清除站点数据会删除本地账户，请先备份。</li></ul>
           <button className="danger-text" type="button" onClick={onLogout}>退出当前本地账户</button>
         </article>
       </div>

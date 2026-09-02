@@ -7,6 +7,7 @@ import { sectionFromHash, sectionHash } from './navigation.js';
 import AppShell from './components/AppShell.jsx';
 import CompleteActivityDialog from './components/CompleteActivityDialog.jsx';
 import KnowledgePage from './features/knowledge/KnowledgePage.jsx';
+import KnowledgeWorkspace from './features/knowledge/KnowledgeWorkspace.jsx';
 import MyPage from './features/account/MyPage.jsx';
 import TodayPage from './features/today/TodayPage.jsx';
 import SpringWindPage from './features/springWind/SpringWindPage.jsx';
@@ -414,12 +415,23 @@ const MonthChart = ({charts, quests=[]}) => {
 };
 
 /* ── CreateForm ──────────────────────────────────────── */
-const mkForm = q => q?.id
-  ? {task_type:safeType(q.task_type),course_name:q.course_name??'',title:q.title??'',start:toInput(q.start),end:toInput(q.end),write_calendar:false}
-  : {task_type:'course',course_name:'',title:'',start:nowPlus(0),end:nowPlus(60),write_calendar:false};
+const mkForm = q => {
+  const blank={task_type:'course',course_name:'',title:'',start:nowPlus(0),end:nowPlus(60),write_calendar:false};
+  if(!q) return blank;
+  return {
+    ...blank,
+    task_type:safeType(q.task_type),
+    course_name:q.course_name??'',
+    title:q.title??'',
+    start:q.start?toInput(q.start):blank.start,
+    end:q.end?toInput(q.end):blank.end,
+    write_calendar:q.id?false:Boolean(q.write_calendar??q.source_type==='obsidian'),
+  };
+};
 
 const CreateForm = ({editQuest,onSave,onCancelEdit,recentQuests=[]}) => {
   const isEdit=!!editQuest?.id;
+  const isObsidianDraft=!isEdit&&editQuest?.source_type==='obsidian';
   const [f,setF]=useState(()=>mkForm(editQuest));
   const [busy,setBusy]=useState(false);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -551,9 +563,10 @@ const CreateForm = ({editQuest,onSave,onCancelEdit,recentQuests=[]}) => {
             <button className="form-tag" type="button" onClick={()=>applyDurationTag(40)}>学习40分钟</button>
           </div>
         </div>
-        <div className="mode-badge"><span className={`mode-dot ${isEdit?'edit':''}`}/>当前：{isEdit?'修改模式':'新建模式'}</div>
-        <button className="btn-create" type="submit" disabled={busy}>{busy?'保存中…':isEdit?'保存修改':'创建本地任务'}</button>
-        {isEdit&&<button className="btn-cancel-edit" type="button" onClick={onCancelEdit}>取消修改</button>}
+        {!isEdit&&<label className="calendar-plan-choice"><input type="checkbox" checked={f.write_calendar} onChange={e=>set('write_calendar',e.target.checked)}/><span>创建后写入 <strong>Berich · 计划</strong><small>只有点击下方确认按钮后才会写入 Apple 日历</small></span></label>}
+        <div className="mode-badge"><span className={`mode-dot ${isEdit?'edit':''}`}/>当前：{isEdit?'修改模式':isObsidianDraft?'Obsidian 待排期':'新建模式'}</div>
+        <button className="btn-create" type="submit" disabled={busy}>{busy?'保存中…':isEdit?'保存修改':isObsidianDraft?'确认时间并创建计划':'创建本地任务'}</button>
+        {(isEdit||isObsidianDraft)&&<button className="btn-cancel-edit" type="button" onClick={onCancelEdit}>{isEdit?'取消修改':'稍后安排'}</button>}
       </form>
     </div>
   );
@@ -702,18 +715,19 @@ const WeeklyOutline = ({weekly_outline=[]}) => {
 };
 
 /* ── FloatReminder ───────────────────────────────────── */
-const FloatReminder = ({quests=[],serverTime=''}) => {
+const FloatReminder = ({quests=[],serverTime='',compact=false}) => {
   const now=useNow(serverTime);
-  const [mini,setMini]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width:700px)').matches);
+  const [mini,setMini]=useState(()=>compact||(typeof window!=='undefined'&&window.matchMedia('(max-width:700px)').matches));
+  useEffect(()=>{if(compact)setMini(true);},[compact]);
   const isDone=q=>q?.status==='done'||!!q?.completed_at;
   const active=quests.find(q=>!isDone(q)&&parseT(q.start)?.getTime()<=now&&parseT(q.end)?.getTime()>=now);
   const upcoming=quests.filter(q=>!isDone(q)&&parseT(q.start)?.getTime()>now).sort((a,b)=>parseT(a.start)?.getTime()-parseT(b.start)?.getTime())[0];
   const lastDone=quests.filter(isDone).map(q=>parseT(q.completed_at||q.end||q.start)).filter(Boolean).sort((a,b)=>b.getTime()-a.getTime())[0];
   const cdLabel=active?fmtMs(parseT(active.end).getTime()-now):'—';
   const idleLabel=active?'进行中':(lastDone?fmtAgo(now-lastDone.getTime()):'暂无记录');
-  if(mini) return(
-    <div className="float-widget">
-      <div className="float-inner" style={{cursor:'pointer'}} onClick={()=>setMini(false)}>
+  if(compact||mini) return(
+    <div className={`float-widget ${compact?'knowledge-compact':''}`}>
+      <div className="float-inner" style={{cursor:compact?'default':'pointer'}} onClick={()=>{if(!compact)setMini(false)}}>
         <div className="float-mini">
           <span className="lbl">学习悬浮提醒</span>
           <span className="cd">{active?cdLabel:'无进行中'}</span>
@@ -911,10 +925,12 @@ function App({account,api,dailyAPI,bridge,onLogout}){
   const[section,setSection]=useState(()=>sectionFromHash(window.location.hash));
   const[completion,setCompletion]=useState(null);
   const[dailyVersion,setDailyVersion]=useState(0);
+  const[knowledgeVersion,setKnowledgeVersion]=useState(0);
   const[projectionBusy,setProjectionBusy]=useState(new Set());
   const formPanelRef=useRef(null);
   const [formPanelHeight,setFormPanelHeight]=useState(0);
   const loadSeqRef=useRef(0),mutatingRef=useRef(false);
+  const legacyMigrationRef=useRef(false);
   const projectionLocksRef=useRef(new Set());
   const activeRef=useRef(true);
   const toast$=useCallback((msg,type='success')=>setToast({msg,type,k:Date.now()}),[]);
@@ -939,10 +955,35 @@ function App({account,api,dailyAPI,bridge,onLogout}){
   const load=useCallback(async(fromMutation=false)=>{
     if(!fromMutation&&mutatingRef.current) return;
     const seq=++loadSeqRef.current;
-    try{const r=await api.state();if(seq!==loadSeqRef.current) return;setData(normalize(r));}
+    try{
+      let r=await api.state();
+      if(!fromMutation&&!legacyMigrationRef.current){
+        legacyMigrationRef.current=true;
+        const migrationKey=`wealth-center.legacy-import.${account.id}`;
+        let migrationState='';
+        try{migrationState=globalThis.localStorage?.getItem(migrationKey)||'';}catch{}
+        const localQuests=r?.data?.quests||[];
+        if(!migrationState&&localQuests.length===0){
+          try{
+            const legacy=await bridge.legacyState();
+            const legacyData=legacy?.data;
+            if(Array.isArray(legacyData?.quests)&&legacyData.quests.length>0){
+              await api.importData(legacyData);
+              r=await api.state();
+              toast$('已恢复之前的学习记录');
+            }
+            try{globalThis.localStorage?.setItem(migrationKey,'done');}catch{}
+          }catch{}
+        }else if(!migrationState&&localQuests.length>0){
+          try{globalThis.localStorage?.setItem(migrationKey,'skipped_existing');}catch{}
+        }
+      }
+      if(seq!==loadSeqRef.current) return;
+      setData(normalize(r));
+    }
     catch{if(seq===loadSeqRef.current) toast$('本地数据读取失败','error');}
     finally{if(seq===loadSeqRef.current) setLoad(false);}
-  },[api,toast$]);
+  },[account.id,api,bridge,toast$]);
 
   useEffect(()=>{load();},[load]);
   useEffect(()=>{const t=setInterval(load,30000);return()=>clearInterval(t);},[load]);
@@ -971,7 +1012,47 @@ function App({account,api,dailyAPI,bridge,onLogout}){
       mutatingRef.current=false;
     }
   };
-  const saveQuest=async body=>{await withMut(async()=>{if(editQ?.id){await api.editQ(editQ.id,body);toast$('已更新');}else{await api.addQ(body);toast$('任务已创建 ✦');}setEditQ(null);});};
+  const saveQuest=async body=>{
+    const editing=!!editQ?.id;
+    const sourceTaskKey=editQ?.source_task_key||'';
+    let createdQuest=null;
+    await withMut(async()=>{
+      if(editing){await api.editQ(editQ.id,body);toast$('已更新');}
+      else{
+        const created=await api.addQ(body);
+        createdQuest=created.quest;
+        if(sourceTaskKey){await api.removeObsidianTaskDraft(sourceTaskKey);setKnowledgeVersion(value=>value+1);}
+        if(!body.write_calendar) toast$('任务已创建 ✦');
+      }
+      setEditQ(null);
+    });
+    if(editing||!body.write_calendar||!createdQuest) return;
+    const entityId=`quest-plan-${createdQuest.id}`;
+    const operationId=entityId;
+    const attemptId=`attempt-${globalThis.crypto.randomUUID()}`;
+    const event={kind:'plan',title:`学习｜${createdQuest.course_name?`${createdQuest.course_name}｜`:''}${createdQuest.title}`,start:createdQuest.start.replace(' ','T')+':00',end:createdQuest.end.replace(' ','T')+':00'};
+    let projectionSaved=false;
+    try{
+      await dailyAPI.updateProjection(entityId,{operation_id:operationId,attempt_id:attemptId,state:'pending',...event});
+      projectionSaved=true;
+      const result=await bridge.writeCalendar({...event,operation_id:operationId});
+      const questStatus=result.status==='succeeded'?'done':result.status==='pending'?'pending':'failed';
+      await dailyAPI.updateProjection(entityId,{operation_id:operationId,attempt_id:attemptId,state:result.status,event_id:result.event_id,...event});
+      await api.updateQuestCalendar(createdQuest.id,{status:questStatus,message:result.status,event_id:result.event_id,operation_id:operationId});
+      await load(true);setDailyVersion(value=>value+1);
+      toast$(result.status==='succeeded'?'任务已创建并写入 Berich · 计划':result.status==='ambiguous'?'任务已创建；日历结果需要核对':'任务已创建；日历稍后可重试',result.status==='succeeded'?'success':'error');
+    }catch(error){
+      const failure=['permission_denied','unavailable'].includes(error.code)?error.code:error.code==='bridge_unavailable'?'unavailable':'retryable_failure';
+      if(projectionSaved) await dailyAPI.updateProjection(entityId,{operation_id:operationId,attempt_id:attemptId,state:failure,...event});
+      await api.updateQuestCalendar(createdQuest.id,{status:'failed',message:failure,operation_id:operationId});
+      await load(true);setDailyVersion(value=>value+1);
+      toast$('任务已保存在本地；当前未写入 Calendar','error');
+    }
+  };
+  const scheduleKnowledgeTask=draft=>{
+    setEditQ({...draft,task_type:'course',source_type:'obsidian',source_task_key:draft.source_key,write_calendar:true});
+    globalThis.requestAnimationFrame?.(()=>formPanelRef.current?.scrollIntoView({behavior:'smooth',block:'start'}));
+  };
   const openQuestCompletion=quest=>setCompletion({
     source_type:'quest', id:quest.id, title:quest.title, kind:'learning',
     planned_duration_minutes:quest.planned_duration_minutes??quest.duration_minutes??25,
@@ -1026,6 +1107,8 @@ function App({account,api,dailyAPI,bridge,onLogout}){
       if(!activeRef.current) return;
       const {checked,result}=await resolveCalendarProjection(bridge,{...projection,...event});
       await dailyAPI.updateProjection(projection.entity_id,{operation_id:operationId,attempt_id:attemptId,state:result.status,event_id:result.event_id});
+      const questMatch=/^quest-plan-(\d+)$/.exec(String(projection.entity_id||''));
+      if(questMatch){await api.updateQuestCalendar(Number(questMatch[1]),{status:result.status==='succeeded'?'done':'failed',message:result.status,event_id:result.event_id,operation_id:operationId});await load(true);}
       if(activeRef.current){
         setDailyVersion(value=>value+1);
         if(result.status==='succeeded') toast$('Calendar 已核对并同步');
@@ -1037,6 +1120,8 @@ function App({account,api,dailyAPI,bridge,onLogout}){
     }catch(error){
       const failure=['permission_denied','unavailable'].includes(error.code)?error.code:error.code==='bridge_unavailable'?'unavailable':'retryable_failure';
       await dailyAPI.updateProjection(projection.entity_id,{operation_id:operationId,attempt_id:attemptId,state:failure});
+      const questMatch=/^quest-plan-(\d+)$/.exec(String(projection.entity_id||''));
+      if(questMatch){await api.updateQuestCalendar(Number(questMatch[1]),{status:'failed',message:failure,operation_id:operationId});await load(true);}
       if(activeRef.current){setDailyVersion(value=>value+1);toast$('Calendar 暂不可用，原操作编号已保留','error');}
     }finally{
       projectionLocksRef.current.delete(operationId);
@@ -1077,6 +1162,7 @@ function App({account,api,dailyAPI,bridge,onLogout}){
           </div>
           <WeeklyOutline weekly_outline={d.weekly_outline}/>
         </div>
+        <KnowledgeWorkspace api={api} dailyAPI={dailyAPI} bridge={bridge} notify={toast$} onScheduleTask={scheduleKnowledgeTask} refreshToken={knowledgeVersion}/>
       </div>
     </KnowledgePage>
   );
@@ -1090,7 +1176,7 @@ function App({account,api,dailyAPI,bridge,onLogout}){
         {section==='knowledge'&&knowledge}
         {section==='me'&&<MyPage key={`me-${dailyVersion}`} account={account} api={api} dailyAPI={dailyAPI} bridge={bridge} onResolveProjection={resolveProjection} projectionBusy={projectionBusy} onImported={()=>{load(true);setDailyVersion(value=>value+1);toast$('数据已导入');}} onLogout={onLogout}/>} 
       </AppShell>
-      <FloatReminder quests={d.quests??[]} serverTime={d.server_time}/>
+      <FloatReminder quests={d.quests??[]} serverTime={d.server_time} compact={section==='knowledge'}/>
       {completion&&<CompleteActivityDialog activity={completion} onCancel={()=>setCompletion(null)} onConfirm={completeActivity}/>} 
       {confirm&&<Confirm msg={confirm.msg} onYes={doDelete} onNo={()=>setConf(null)}/>} 
       {toast&&<Toast key={toast.k} msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>} 

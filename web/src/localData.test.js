@@ -122,6 +122,62 @@ test('completes, exports, and imports local account data', async () => {
   assert.equal(targetState.player.total_done, 1);
 });
 
+test('keeps additive knowledge notes and Obsidian links inside the account backup', async () => {
+  const storage = new MemoryStorage();
+  const account = await accountService.register({ username: 'obsidian-user', password: '1234' }, storage);
+  const api = createLocalAPI(account.id, storage);
+  await api.createKnowledgeNote({ title: '系统思考', content: '反馈回路影响行为。' });
+  await api.appendKnowledgeAddition(1, {
+    source_label: 'Obsidian/系统思考',
+    source_text: '延迟让反馈不易察觉。',
+    source_link: 'obsidian://open?vault=Vault&file=系统思考',
+    addition_markdown: '记录时间尺度，避免忽略延迟。',
+    review_cards: [{ question: '为什么记录时间尺度？', answer: '延迟可能掩盖反馈。' }],
+  });
+  const note = api.knowledgeState().notes[0];
+  assert.match(note.content, /^反馈回路影响行为。/);
+  assert.equal(note.sources[0].link, 'obsidian://open?vault=Vault&file=系统思考');
+  assert.equal(note.review_cards[0].source_link, 'obsidian://open?vault=Vault&file=系统思考');
+  const backup = JSON.parse(api.exportData());
+  assert.equal(backup.knowledge_base.notes[0].title, '系统思考');
+});
+
+test('stores one pending Obsidian task per note and removes it after scheduling', async () => {
+  const storage = new MemoryStorage();
+  const account = await accountService.register({ username: 'obsidian-task', password: '1234' }, storage);
+  const api = createLocalAPI(account.id, storage);
+  const input = {
+    source_key: 'vault-1:CS520/Module 10.md', vault_id: 'vault-1', path: 'CS520/Module 10.md',
+    course_name: 'CS520', title: 'Module 10', source_link: 'obsidian://open?vault=x&file=y', content_hash: 'hash-1',
+  };
+
+  await api.upsertObsidianTaskDraft(input);
+  await api.upsertObsidianTaskDraft({ ...input, content_hash: 'hash-2' });
+  assert.equal(api.knowledgeState().task_drafts.length, 1);
+  assert.equal(api.knowledgeState().task_drafts[0].save_count, 2);
+
+  await api.removeObsidianTaskDraft(input.source_key);
+  assert.equal(api.knowledgeState().task_drafts.length, 0);
+});
+
+test('creates a confirmed local quest before tracking its Calendar result', async () => {
+  const storage = new MemoryStorage();
+  const account = await accountService.register({ username: 'obsidian-calendar', password: '1234' }, storage);
+  const api = createLocalAPI(account.id, storage);
+
+  const created = await api.addQ({
+    title: 'Module 10', course_name: 'CS520', task_type: 'course',
+    start: '2026-09-03 10:00', end: '2026-09-03 11:00', write_calendar: true,
+  });
+  assert.equal(created.quest.calendar_sync_status, 'pending');
+
+  await api.updateQuestCalendar(created.quest.id, { status: 'done', event_id: 'calendar-event-1', operation_id: 'quest-plan-1' });
+  const quest = (await api.state()).data.quests[0];
+  assert.equal(quest.calendar_sync_status, 'done');
+  assert.equal(quest.calendar_event_id, 'calendar-event-1');
+  assert.equal(quest.calendar_operation_id, 'quest-plan-1');
+});
+
 test('migrates legacy quests without inventing actual time and freezes completed rewards', async () => {
   const storage = new MemoryStorage();
   const account = await accountService.register({ username: 'legacy', password: '1234' }, storage);
@@ -223,7 +279,7 @@ test('portable import is atomic and removes device-local projection and consent 
   assert.equal(imported.plans[0].suggestion_id, 'portable-s');
   assert.deepEqual(imported.calendar_preferences.selected_calendars, []);
   assert.deepEqual(imported.consent, {
-    purposes: { daily_advice: null, spring_wind_text: null, environment: null, image_recognition: null },
+    purposes: { daily_advice: null, spring_wind_text: null, environment: null, image_recognition: null, knowledge_refine: null },
   });
   assert.equal(imported.projections[0].state, 'not_synced');
   assert.equal(imported.projections[0].event_id, null);

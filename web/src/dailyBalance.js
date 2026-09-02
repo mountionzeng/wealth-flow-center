@@ -29,7 +29,7 @@ const assertUnique = (rows, field) => {
   });
 };
 
-export const CONSENT_PURPOSES = ['daily_advice', 'spring_wind_text', 'environment', 'image_recognition'];
+export const CONSENT_PURPOSES = ['daily_advice', 'spring_wind_text', 'environment', 'image_recognition', 'knowledge_refine'];
 const emptyPurposeConsents = () => Object.fromEntries(CONSENT_PURPOSES.map(purpose => [purpose, null]));
 
 const legacyCategories = purpose => ({
@@ -37,6 +37,7 @@ const legacyCategories = purpose => ({
   spring_wind_text: ['bazi', 'birth_city', 'current_city', 'question', 'environment_facts'],
   environment: ['birth_city', 'current_city'],
   image_recognition: ['bazi_image'],
+  knowledge_refine: ['selected_note', 'new_material'],
 }[purpose] || []);
 
 const normalizeLocationSelection = value => {

@@ -31,6 +31,8 @@ from core.calendar_sync import CalendarBridge, CalendarCommandError, schedule_ca
 from core.ai_gateway import AIGateway, AIProviderError, MAX_IMAGE_BYTES, ProviderConfig, sanitize_image
 from core.local_vision import LocalVisionError, LocalVisionOCR
 from core.daily_advice import build_daily_context, generate_daily_advice
+from core.knowledge_notes import generate_knowledge_cards, refine_knowledge_note
+from core.obsidian_vault import MAX_MARKDOWN_BYTES, ObsidianVaultBridge, ObsidianVaultError
 from core.spring_wind import generate_spring_wind
 from core.environment import EnvironmentGateway
 
@@ -108,12 +110,12 @@ class WealthCenterHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 
-    def _read_json_body(self) -> dict[str, Any]:
+    def _read_json_body(self, max_bytes: int = MAX_BODY_BYTES) -> dict[str, Any]:
         try:
             length = int(self.headers.get("Content-Length", "0") or "0")
         except ValueError as exc:
             raise ValueError("Content-Length 不合法") from exc
-        if length > MAX_BODY_BYTES:
+        if length > max_bytes:
             raise RequestTooLarge("请求体过大")
         if length <= 0:
             return {}
@@ -158,9 +160,9 @@ class WealthCenterHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "bridge_access_denied"})
         return False
 
-    def _read_json_or_error(self) -> Any:
+    def _read_json_or_error(self, max_bytes: int = MAX_BODY_BYTES) -> Any:
         try:
-            return self._read_json_body()
+            return self._read_json_body(max_bytes=max_bytes)
         except RequestTooLarge as exc:
             self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"ok": False, "error": str(exc)})
         except ValueError as exc:
@@ -232,6 +234,10 @@ class WealthCenterHandler(BaseHTTPRequestHandler):
             if self._require_bridge_auth():
                 self._send_json(200, {"ok": True, "provider": self._environment_disclosure()})
             return
+        if path == "/api/obsidian/vaults":
+            if self._require_bridge_auth():
+                self._send_json(200, {"ok": True, **self.server.obsidian_bridge.list_vaults()})
+            return
         if path == "/api/calendar/calendars":
             if self._require_bridge_auth():
                 result = self.server.calendar_bridge.list_calendars()
@@ -270,6 +276,12 @@ class WealthCenterHandler(BaseHTTPRequestHandler):
             if not self._require_bridge_auth():
                 return
             self._handle_environment_post(path)
+            return
+
+        if path.startswith("/api/obsidian/"):
+            if not self._require_bridge_auth():
+                return
+            self._handle_obsidian_post(path)
             return
 
         # Legacy mutations can trigger Calendar writes and therefore share the
@@ -359,6 +371,14 @@ class WealthCenterHandler(BaseHTTPRequestHandler):
                 advice = generate_daily_advice(self.server.ai_gateway, context)
                 self._send_json(200, {"ok": True, "advice": advice})
                 return
+            if path == "/api/ai/knowledge-refine":
+                result = refine_knowledge_note(self.server.ai_gateway, body)
+                self._send_json(200, {"ok": True, "result": result})
+                return
+            if path == "/api/ai/knowledge-cards":
+                result = generate_knowledge_cards(self.server.ai_gateway, body)
+                self._send_json(200, {"ok": True, "result": result})
+                return
             if path == "/api/ai/spring-wind":
                 report = generate_spring_wind(
                     self.server.ai_gateway,
@@ -390,6 +410,32 @@ class WealthCenterHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"ok": True, "location": result})
                 return
             self.send_error(HTTPStatus.NOT_FOUND)
+        except (ValueError, TypeError):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "请求参数不合法"})
+
+    def _handle_obsidian_post(self, path: str) -> None:
+        body = self._read_json_or_error(max_bytes=MAX_MARKDOWN_BYTES + MAX_BODY_BYTES)
+        if body is None:
+            return
+        try:
+            vault_id = str(body.get("vault_id", ""))
+            if path == "/api/obsidian/tree":
+                result = self.server.obsidian_bridge.tree(vault_id)
+            elif path == "/api/obsidian/read":
+                result = self.server.obsidian_bridge.read(vault_id, str(body.get("path", "")))
+            elif path == "/api/obsidian/write":
+                result = self.server.obsidian_bridge.write(
+                    vault_id,
+                    str(body.get("path", "")),
+                    body.get("content"),
+                    str(body.get("expected_hash", "")),
+                )
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            self._send_json(200, {"ok": True, "data": result})
+        except ObsidianVaultError as exc:
+            self._send_json(exc.status, {"ok": False, "error": exc.code, "message": str(exc)})
         except (ValueError, TypeError):
             self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "请求参数不合法"})
 
@@ -654,6 +700,7 @@ def create_server(
     ai_gateway: AIGateway | None = None,
     local_vision: LocalVisionOCR | None = None,
     environment_gateway: EnvironmentGateway | None = None,
+    obsidian_bridge: ObsidianVaultBridge | None = None,
 ) -> ThreadingHTTPServer:
     if host != DEFAULT_HOST:
         raise ValueError("本机桥只允许绑定 127.0.0.1")
@@ -663,6 +710,7 @@ def create_server(
     server.ai_gateway = ai_gateway or AIGateway(ProviderConfig.from_env())
     server.local_vision = local_vision or LocalVisionOCR()
     server.environment_gateway = environment_gateway or EnvironmentGateway()
+    server.obsidian_bridge = obsidian_bridge or ObsidianVaultBridge()
     return server
 
 

@@ -9,6 +9,20 @@ import {
   preparePortableDailyBalance,
   setPurposeConsent,
 } from './dailyBalance.js';
+import {
+  addKnowledgeNote,
+  appendKnowledgeAddition,
+  createKnowledgeState,
+  markKnowledgeNotification,
+  normalizeKnowledgeState,
+  recordKnowledgeReview,
+  removeKnowledgeNote,
+  removeObsidianTaskDraft,
+  restoreKnowledgeRevision,
+  storeObsidianReviewCards,
+  upsertObsidianTaskDraft,
+  updateKnowledgeNote,
+} from './knowledgeData.js';
 
 const ACCOUNT_KEY = 'wealth-center.accounts.v1';
 const SESSION_KEY = 'wealth-center.session.v1';
@@ -40,6 +54,7 @@ const defaultState = () => ({
   next_id: 1,
   quests: [],
   daily_balance: createDailyBalanceState(),
+  knowledge_base: createKnowledgeState(),
 });
 
 const safeJSON = (raw, fallback) => {
@@ -171,6 +186,7 @@ const normalizeState = raw => {
     quests,
     next_id: Math.max(Number(source.next_id) || 1, ...quests.map(row => Number(row.id) + 1 || 1)),
     daily_balance: normalizeDailyBalanceState(source.daily_balance),
+    knowledge_base: normalizeKnowledgeState(source.knowledge_base),
   };
 };
 
@@ -306,16 +322,34 @@ export const createLocalAPI = (accountId, storage = globalThis.localStorage, loc
       const minutes = Math.max(10, Math.floor((end - start) / 60000));
       const type = TYPE_CONFIG[body.task_type] ? body.task_type : 'course';
       const [xp, wealth] = rewardFor(minutes, type);
-      state.quests.push({
+      const quest = {
         id: state.next_id++, title, task_type: type, course_name: String(body.course_name || '').trim(),
         start: formatTime(start), end: formatTime(end), duration_minutes: minutes,
         planned_start: formatTime(start), planned_end: formatTime(end), planned_duration_minutes: minutes,
         reward_xp: xp, reward_wealth: wealth, status: 'todo', created_at: formatTime(new Date()), completed_at: null,
         reward_basis: 'planned',
-        calendar_sync_status: 'skipped', calendar_sync_message: '网页本地模式不写入系统日历',
-      });
+        calendar_sync_status: body.write_calendar ? 'pending' : 'skipped',
+        calendar_sync_message: body.write_calendar ? '已确认时间，等待写入 Berich · 计划' : '未选择写入日历',
+      };
+      state.quests.push(quest);
       writeState(accountId, storage, state);
-      return { ok: true };
+      return { ok: true, quest: structuredClone(quest) };
+    });
+  },
+
+  async updateQuestCalendar(id, update = {}) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      const quest = state.quests.find(row => Number(row.id) === Number(id));
+      if (!quest) throw new Error('任务不存在');
+      const status = ['pending', 'syncing', 'done', 'failed', 'skipped'].includes(update.status) ? update.status : 'failed';
+      quest.calendar_sync_status = status;
+      quest.calendar_sync_message = String(update.message || '').trim().slice(0, 240);
+      quest.calendar_operation_id = String(update.operation_id || quest.calendar_operation_id || '').trim().slice(0, 160);
+      quest.calendar_event_id = String(update.event_id || quest.calendar_event_id || '').trim().slice(0, 240) || null;
+      quest.updated_at = formatTime(new Date());
+      writeState(accountId, storage, state);
+      return { ok: true, quest: structuredClone(quest) };
     });
   },
 
@@ -372,6 +406,90 @@ export const createLocalAPI = (accountId, storage = globalThis.localStorage, loc
         writeState(accountId, storage, state);
       }
       return { ok: true };
+    });
+  },
+
+  knowledgeState() {
+    return normalizeKnowledgeState(readState(accountId, storage).knowledge_base);
+  },
+
+  async createKnowledgeNote(input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = addKnowledgeNote(state.knowledge_base, input);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async updateKnowledgeNote(id, input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = updateKnowledgeNote(state.knowledge_base, id, input);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async appendKnowledgeAddition(id, input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = appendKnowledgeAddition(state.knowledge_base, id, input);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async restoreKnowledgeRevision(id, revisionIndex) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = restoreKnowledgeRevision(state.knowledge_base, id, revisionIndex);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async deleteKnowledgeNote(id) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = removeKnowledgeNote(state.knowledge_base, id);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async recordKnowledgeReview(id, grade) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = recordKnowledgeReview(state.knowledge_base, id, grade);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async markKnowledgeNotification(date) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = markKnowledgeNotification(state.knowledge_base, date);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async storeObsidianReviewCards(input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = storeObsidianReviewCards(state.knowledge_base, input);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async upsertObsidianTaskDraft(input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = upsertObsidianTaskDraft(state.knowledge_base, input);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  async removeObsidianTaskDraft(sourceKey) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.knowledge_base = removeObsidianTaskDraft(state.knowledge_base, sourceKey);
+      return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
     });
   },
 

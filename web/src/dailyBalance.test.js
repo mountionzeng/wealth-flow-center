@@ -18,7 +18,7 @@ if (!globalThis.crypto) globalThis.crypto = webcrypto;
 test('schema v2 defaults are complete', () => {
   assert.deepEqual(createDailyBalanceState(), {
     check_ins: [], advice: [], plans: [], completions: [], projections: [], spring_wind: null,
-    consent: { purposes: { daily_advice: null, spring_wind_text: null, environment: null, image_recognition: null } },
+    consent: { purposes: { daily_advice: null, spring_wind_text: null, environment: null, image_recognition: null, knowledge_refine: null } },
     calendar_preferences: { selected_calendars: [] },
   });
 });
@@ -113,7 +113,7 @@ test('portable clone keeps raw personal truth and clears provider grants and nor
   assert.deepEqual(portable.spring_wind.locations, { birth: null, current: null });
   assert.deepEqual(portable.calendar_preferences.selected_calendars, []);
   assert.deepEqual(portable.consent, {
-    purposes: { daily_advice: null, spring_wind_text: null, environment: null, image_recognition: null },
+    purposes: { daily_advice: null, spring_wind_text: null, environment: null, image_recognition: null, knowledge_refine: null },
   });
   assert.deepEqual(portable.projections[0], { entity_id: 's', operation_id: 'op', attempt_id: null, state: 'not_synced', event_id: null });
 });

@@ -35,6 +35,14 @@ class FakeAI:
 
     def complete_json(self, system, user, max_tokens=900):
         self.json_calls.append(user)
+        if "知识笔记增补" in system:
+            return {
+                "addition_markdown": "新素材补充了时间尺度这一观察维度。",
+                "change_summary": "增加时间尺度与反馈延迟的联系。",
+                "review_cards": [{"question": "时间尺度为什么重要？", "answer": "延迟可能掩盖反馈。"}],
+            }
+        if "知识复习卡" in system:
+            return {"review_cards": [{"question": "反馈延迟会怎样？", "answer": "它可能掩盖因果。"}]}
         if "问春风" in system:
             return {
                 "culture": {
@@ -103,13 +111,32 @@ class FakeEnvironment:
         }
 
 
+class FakeObsidian:
+    def __init__(self):
+        self.writes = []
+
+    def list_vaults(self):
+        return {"active_vault_id": "vault-1", "vaults": [{"id": "vault-1", "name": "硕士课程知识库", "path": "/tmp/vault", "active": True}]}
+
+    def tree(self, vault_id):
+        return {"vault": {"id": vault_id, "name": "硕士课程知识库"}, "files": [{"path": "课程/第一课.md", "name": "第一课"}], "truncated": False}
+
+    def read(self, vault_id, path):
+        return {"vault_id": vault_id, "vault_name": "硕士课程知识库", "path": path, "title": "第一课", "content": "原文", "content_hash": "hash-1", "obsidian_url": "obsidian://open?vault=x&file=y"}
+
+    def write(self, vault_id, path, content, expected_hash):
+        self.writes.append((vault_id, path, content, expected_hash))
+        return {"vault_id": vault_id, "path": path, "content": content, "content_hash": "hash-2"}
+
+
 class WebBridgeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.fake_ai = FakeAI()
         cls.fake_local_vision = FakeLocalVision()
         cls.fake_environment = FakeEnvironment()
-        cls.server = wealth_center_web.create_server("127.0.0.1", 0, capability_token="test-token", calendar_bridge=FakeBridge(), ai_gateway=cls.fake_ai, local_vision=cls.fake_local_vision, environment_gateway=cls.fake_environment)
+        cls.fake_obsidian = FakeObsidian()
+        cls.server = wealth_center_web.create_server("127.0.0.1", 0, capability_token="test-token", calendar_bridge=FakeBridge(), ai_gateway=cls.fake_ai, local_vision=cls.fake_local_vision, environment_gateway=cls.fake_environment, obsidian_bridge=cls.fake_obsidian)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.port = cls.server.server_address[1]
@@ -230,6 +257,48 @@ class WebBridgeTests(unittest.TestCase):
         self.assertEqual(report["status"], "complete")
         self.assertIn("clothing", report["culture"])
         self.assertEqual(self.fake_environment.snapshot_calls[-1][0:2], ("成都", "北京"))
+
+    def test_knowledge_refine_returns_an_addition_without_replacing_the_note(self):
+        request = {
+            "note": {"title": "系统思考", "content": "反馈回路影响行为。"},
+            "material": {"label": "课程第三讲", "text": "延迟让反馈不易察觉。"},
+        }
+        self.assertEqual(self.request("POST", "/api/ai/knowledge-refine", request)[0], 403)
+        status, _, body = self.request("POST", "/api/ai/knowledge-refine", request, headers=self.auth())
+        self.assertEqual(status, 200)
+        result = json.loads(body)["result"]
+        self.assertIn("时间尺度", result["addition_markdown"])
+        self.assertNotIn("merged_note", result)
+        self.assertEqual(result["source_label"], "课程第三讲")
+
+    def test_knowledge_cards_are_generated_without_writing_the_obsidian_note(self):
+        status, _, body = self.request(
+            "POST",
+            "/api/ai/knowledge-cards",
+            {"note": {"title": "系统思考", "content": "反馈延迟会掩盖因果。"}},
+            headers=self.auth(),
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["result"]["review_cards"][0]["question"], "反馈延迟会怎样？")
+
+    def test_obsidian_routes_auto_list_read_and_write_through_the_local_boundary(self):
+        self.assertEqual(self.request("GET", "/api/obsidian/vaults")[0], 403)
+        status, _, body = self.request("GET", "/api/obsidian/vaults", headers=self.auth())
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["active_vault_id"], "vault-1")
+
+        status, _, body = self.request("POST", "/api/obsidian/tree", {"vault_id": "vault-1"}, headers=self.auth())
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["data"]["files"][0]["path"], "课程/第一课.md")
+
+        status, _, body = self.request("POST", "/api/obsidian/read", {"vault_id": "vault-1", "path": "课程/第一课.md"}, headers=self.auth())
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["data"]["content"], "原文")
+
+        status, _, body = self.request("POST", "/api/obsidian/write", {"vault_id": "vault-1", "path": "课程/第一课.md", "content": "新内容", "expected_hash": "hash-1"}, headers=self.auth())
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["data"]["content_hash"], "hash-2")
+        self.assertEqual(self.fake_obsidian.writes[-1], ("vault-1", "课程/第一课.md", "新内容", "hash-1"))
 
     def test_environment_search_requires_capability_and_receives_city_only(self):
         self.assertEqual(self.request("POST", "/api/environment/search", {"query": "通州"})[0], 403)
