@@ -303,7 +303,7 @@ class AIGateway:
                 {"type": "text", "text": prompt},
             ],
         }]
-        content = self._request(messages, self.config.vision_model, 800, {"type": "json_object"})
+        content = self._request(messages, self.config.vision_model, 800)
         parsed = _parse_json_content(content)
         if not str(parsed.get("bazi") or "").strip():
             raise AIProviderError("bazi_not_recognized")

@@ -90,6 +90,7 @@ class AIGatewayTests(unittest.TestCase):
         self.assertNotIn("secret", sent)
         self.assertNotIn("feelings", sent)
         self.assertNotIn("location", sent)
+        self.assertEqual(transport.calls[0][1]["response_format"], {"type": "json_object"})
 
     def test_invalid_daily_output_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -133,7 +134,8 @@ class AIGatewayTests(unittest.TestCase):
                 {"key": "phone", "value": "13800000000", "confidence": "high"},
             ],
         }, ensure_ascii=False))
-        gateway = AIGateway(self.config(), transport=FakeTransport(response))
+        transport = FakeTransport(response)
+        gateway = AIGateway(self.config(), transport=transport)
         image = sanitize_image(self._png_bytes(), "image/png")
 
         recognized = gateway.recognize_bazi(image)
@@ -141,6 +143,7 @@ class AIGatewayTests(unittest.TestCase):
         self.assertEqual(recognized["source"], "external_vision")
         self.assertEqual([item["key"] for item in recognized["profile_fields"]], ["gender", "birth_place"])
         self.assertNotIn("13800000000", json.dumps(recognized, ensure_ascii=False))
+        self.assertNotIn("response_format", transport.calls[0][1])
 
     @staticmethod
     def _png_bytes():
