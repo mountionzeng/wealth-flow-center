@@ -1,0 +1,27 @@
+project_id = "berich-cloud-sync"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:4318"
+additional_redirect_urls = ["http://127.0.0.1:4318/auth/callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+
+[auth.external.google]
+enabled = false
+# Configure client_id and secret in the local Supabase environment only.
+# Never commit a Google OAuth secret to this repository.
