@@ -206,6 +206,8 @@ const normalizeState = raw => {
   };
 };
 
+export const normalizeAccountState = raw => normalizeState(raw);
+
 const readState = (accountId, storage) => normalizeState(safeJSON(storage.getItem(dataKey(accountId)), defaultState()));
 const writeState = (accountId, storage, state) => {
   const next = { ...state, revision: Number(state.revision || 0) + 1 };
@@ -260,6 +262,12 @@ const rebuildPlayer = state => {
     applyLevel(player);
   });
   state.player = player;
+};
+
+export const rebuildAccountPlayer = raw => {
+  const state = normalizeState(raw);
+  rebuildPlayer(state);
+  return state;
 };
 
 const dashboard = state => {
