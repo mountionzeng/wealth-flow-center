@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { accountService, createDailyBalanceAPI, createLocalAPI } from './localData.js';
+import { createCloudAuth, isOAuthCallbackPath } from './cloudAuth.js';
+import { getSupabaseClient } from './supabaseClient.js';
 import { createLocalBridge } from './localBridge.js';
 import { resolveCalendarProjection } from './calendarProjection.js';
 import { sectionFromHash, sectionHash } from './navigation.js';
@@ -9,6 +11,7 @@ import CompleteActivityDialog from './components/CompleteActivityDialog.jsx';
 import KnowledgePage from './features/knowledge/KnowledgePage.jsx';
 import KnowledgeWorkspace from './features/knowledge/KnowledgeWorkspace.jsx';
 import MyPage from './features/account/MyPage.jsx';
+import AuthCallback from './features/account/AuthCallback.jsx';
 import TodayPage from './features/today/TodayPage.jsx';
 import SpringWindPage from './features/springWind/SpringWindPage.jsx';
 
@@ -840,7 +843,7 @@ const CursorStars = () => {
 };
 
 /* ── Local account ───────────────────────────────────── */
-const AuthGate = ({onAuthenticated}) => {
+const AuthGate = ({onAuthenticated,cloudEnabled,onGoogleLogin,cloudError}) => {
   const [mode,setMode]=useState('login');
   const [form,setForm]=useState({username:'',password:''});
   const [busy,setBusy]=useState(false);
@@ -867,7 +870,9 @@ const AuthGate = ({onAuthenticated}) => {
         <div className="auth-mark"><HeaderSealIcon/></div>
         <p className="auth-kicker">BE RICH, MY FRIEND</p>
         <h1 id="auth-title">把时间，存成自己的财富</h1>
-        <p className="auth-intro">你的任务、学习时长与成长记录只保存在当前设备的这个浏览器中。</p>
+        <p className="auth-intro">{cloudEnabled ? '你可以使用 Google 登录同步资料；本机账户仍只保存在当前浏览器。' : '你的任务、学习时长与成长记录只保存在当前设备的这个浏览器中。'}</p>
+        {cloudEnabled&&<button className="auth-submit auth-google" type="button" onClick={onGoogleLogin}>使用 Google 登录</button>}
+        {cloudError&&<p className="auth-error" role="alert">{cloudError}</p>}
         <div className="auth-tabs" role="tablist" aria-label="账户操作">
           <button type="button" className={mode==='login'?'active':''} onClick={()=>switchMode('login')}>登录</button>
           <button type="button" className={mode==='register'?'active':''} onClick={()=>switchMode('register')}>创建本地账户</button>
@@ -1185,15 +1190,64 @@ function App({account,api,dailyAPI,bridge,onLogout}){
 }
 
 const SiteRoot=()=>{
-  const [account,setAccount]=useState(()=>accountService.restore());
+  const cloudClient=useMemo(()=>getSupabaseClient(),[]);
+  const cloudAuth=useMemo(()=>createCloudAuth(cloudClient),[cloudClient]);
+  const cloudEnabled=Boolean(cloudClient);
+  const [cloudState,setCloudState]=useState(()=>cloudEnabled?{status:'booting'}:{status:'disabled'});
+  const [cloudError,setCloudError]=useState('');
+  const [account,setAccount]=useState(()=>cloudEnabled?null:accountService.restore());
+  useEffect(()=>{
+    if(!cloudEnabled) return;
+    let active=true;
+    const apply=next=>{
+      if(!active) return;
+      setCloudState(next);
+      setAccount(next.status==='authenticated'?next.account:null);
+    };
+    const bootstrap=async()=>{
+      try{
+        const next=isOAuthCallbackPath(window.location)
+          ? await cloudAuth.completeCallback()
+          : await cloudAuth.bootstrap();
+        apply(next);
+      }catch(error){
+        if(!active) return;
+        setCloudError(error?.message||'Google 登录暂时不可用，请稍后重试');
+        setCloudState({status:'error'});
+        setAccount(null);
+      }
+    };
+    bootstrap();
+    const unsubscribe=cloudAuth.subscribe(next=>apply(next));
+    return()=>{active=false;unsubscribe();};
+  },[cloudAuth,cloudEnabled]);
   const api=useMemo(()=>account?createLocalAPI(account.id):null,[account]);
   const dailyAPI=useMemo(()=>account?createDailyBalanceAPI(account.id):null,[account]);
   const bridge=useMemo(()=>createLocalBridge(),[]);
-  const logout=()=>{accountService.logout();window.history.replaceState(null,'',sectionHash('today'));setAccount(null);};
+  const logout=async()=>{
+    if(account?.auth_mode==='google'){
+      try{await cloudAuth.signOut();}catch(error){setCloudError(error?.message||'退出 Google 登录失败');}
+      setCloudState({status:'anonymous'});
+    }else accountService.logout();
+    window.history.replaceState(null,'',sectionHash('today'));setAccount(null);
+  };
   const authenticate=next=>{window.history.replaceState(null,'',sectionHash('today'));setAccount(next);};
+  const loginWithGoogle=async()=>{
+    setCloudError('');
+    try{await cloudAuth.startGoogleLogin();}
+    catch(error){setCloudError(error?.message||'Google 登录暂时不可用，请稍后重试');}
+  };
+  const returnToLogin=()=>{
+    window.history.replaceState(null,'',sectionHash('today'));
+    setCloudError('');setCloudState({status:'anonymous'});
+  };
+  if(cloudEnabled&&isOAuthCallbackPath(window.location)&&(cloudState.status==='booting'||cloudState.status==='error')){
+    return <AuthCallback error={cloudState.status==='error'?cloudError:''} onReturnToLogin={returnToLogin}/>;
+  }
+  if(cloudEnabled&&cloudState.status==='booting') return <AuthCallback/>;
   return account&&api&&dailyAPI
     ? <App key={account.id} account={account} api={api} dailyAPI={dailyAPI} bridge={bridge} onLogout={logout}/>
-    : <AuthGate onAuthenticated={authenticate}/>;
+    : <AuthGate onAuthenticated={authenticate} cloudEnabled={cloudEnabled} onGoogleLogin={loginWithGoogle} cloudError={cloudError}/>;
 };
 
 createRoot(document.getElementById('root')).render(<SiteRoot/>);

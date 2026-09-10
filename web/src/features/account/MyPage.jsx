@@ -86,11 +86,11 @@ export default function MyPage({ account, api, dailyAPI, bridge, onResolveProjec
           <p className="panel-number">01</p><h2>当前账户</h2>
           <div className="identity-name"><span>{account.display_name.slice(0, 1)}</span><div><strong>{account.display_name}</strong><small>@{account.username}</small></div></div>
           <p className="plain-warning">这是浏览器内的便捷隔离，不是加密保险箱。能访问此浏览器资料的人也可能读取这些本地数据。</p>
-          <form className="password-reset" onSubmit={changePassword}>
+          {account.auth_mode !== 'google' && <form className="password-reset" onSubmit={changePassword}>
             <label htmlFor="new-local-password">修改本机密码</label>
             <div><input id="new-local-password" type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={4} autoComplete="new-password" placeholder="输入至少 4 位的新密码" required/><button className="secondary-btn" type="submit">保存密码</button></div>
             <small aria-live="polite">{passwordStatus || '仅修改当前浏览器里的账户，不影响学习资料。'}</small>
-          </form>
+          </form>}
           <div className="button-row"><button className="gold-btn" type="button" onClick={exportData}>备份全部数据</button><button className="secondary-btn" type="button" onClick={() => fileRef.current?.click()}>导入备份</button></div>
           <input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={importData}/>
         </article>
