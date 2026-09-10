@@ -117,6 +117,22 @@ export const accountService = {
     return { id: account.id, username: account.username, display_name: account.display_name };
   },
 
+  async changePassword(accountId, password, storage = globalThis.localStorage) {
+    if (String(password || '').length < 4) throw new Error('本机密码至少需要 4 位');
+    const accounts = accountList(storage);
+    const index = accounts.findIndex(account => account.id === accountId);
+    if (index < 0) throw new Error('当前账户不存在');
+    const salt = randomHex(16);
+    const updated = {
+      ...accounts[index],
+      salt,
+      password_hash: await passwordHash(password, salt),
+      password_updated_at: new Date().toISOString(),
+    };
+    saveAccounts(storage, accounts.map((account, position) => position === index ? updated : account));
+    return { id: updated.id, username: updated.username, display_name: updated.display_name };
+  },
+
   restore(storage = globalThis.localStorage, legacySession = globalThis.sessionStorage) {
     let id = storage.getItem(SESSION_KEY);
     if (!id && legacySession && legacySession !== storage) {

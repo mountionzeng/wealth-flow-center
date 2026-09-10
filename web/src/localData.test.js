@@ -41,6 +41,19 @@ test('accepts a simple Chinese name and a short local password', async () => {
   assert.equal((await accountService.login({ username: '小曾同学', password: '2026' }, storage)).id, account.id);
 });
 
+test('changes the password for the signed-in local account without changing its data', async () => {
+  const storage = new MemoryStorage();
+  const account = await accountService.register({ username: 'owner@example.com', password: 'before-2026' }, storage);
+  const api = createLocalAPI(account.id, storage);
+  await api.addQ({ title: 'Module 1', course_name: 'CS583', task_type: 'course', start: '2026-08-03 10:00', end: '2026-08-03 11:00' });
+
+  await accountService.changePassword(account.id, 'after-2026', storage);
+
+  await assert.rejects(accountService.login({ username: account.username, password: 'before-2026' }, storage), /账号或密码不正确/);
+  assert.equal((await accountService.login({ username: account.username, password: 'after-2026' }, storage)).id, account.id);
+  assert.equal((await api.state()).data.quests.length, 1);
+});
+
 test('keeps the chosen account signed in across browser restarts without storing a password', async () => {
   const storage = new MemoryStorage();
   const legacySession = new MemoryStorage();

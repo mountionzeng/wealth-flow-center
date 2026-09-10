@@ -3,6 +3,7 @@ import ObsidianMarkdown from '../../components/ObsidianMarkdown.jsx';
 import SafeMarkdown from '../../components/SafeMarkdown.jsx';
 import { consentMatches } from '../../dailyBalance.js';
 import { knowledgeDateKey, selectDailyKnowledgeReview } from '../../knowledgeData.js';
+import { saveDraftBeforeNoteSelection } from '../../obsidianNavigation.js';
 import { DEFAULT_NOTE_VIEW } from '../../obsidianMarkdown.js';
 import { buildObsidianTree, firstObsidianPath, taskDraftFromObsidianNote } from '../../obsidianTree.js';
 
@@ -216,9 +217,16 @@ export default function KnowledgeWorkspace({ api, dailyAPI, bridge, notify, onSc
   }, [dirty]);
 
   const selectNote = async path => {
-    if (!path || path === note?.path) return;
+    const currentNote = noteRef.current;
+    if (!path || path === currentNote?.path) return;
     if (busy === 'save') { setError('正在保存当前笔记，请稍候再切换。'); return; }
-    if (dirty && !window.confirm('当前笔记还有未保存的修改。放弃修改并打开另一篇吗？')) return;
+    const readyToSwitch = await saveDraftBeforeNoteSelection({
+      note: currentNote,
+      getCurrentNote: () => noteRef.current,
+      getDraft: () => draftRef.current,
+      save: content => saveContent(content, '已自动保存当前笔记'),
+    });
+    if (!readyToSwitch) return;
     const requestId = ++readRequestRef.current;
     const requestedVaultId = vaultIdRef.current;
     setBusy('read'); setStatus('正在打开笔记…'); setError(''); setPreview(null);

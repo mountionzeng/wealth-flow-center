@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { accountService } from '../../localData.js';
 
 const syncStatusText = state => ({
   ambiguous: '需要核对是否已写入',
@@ -21,6 +22,8 @@ export default function MyPage({ account, api, dailyAPI, bridge, onResolveProjec
   const [calendars, setCalendars] = useState([]);
   const [calendarStatus, setCalendarStatus] = useState('尚未连接本机 Calendar');
   const [busy, setBusy] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordStatus, setPasswordStatus] = useState('');
   useEffect(() => setDaily(dailyAPI.state()), [dailyAPI]);
   const selected = daily.calendar_preferences.selected_calendars || [];
   const loadCalendars = async () => {
@@ -64,6 +67,17 @@ export default function MyPage({ account, api, dailyAPI, bridge, onResolveProjec
     if (!record || record.revoked_at) return;
     setDaily(await dailyAPI.setConsent(purpose, { ...record, revoked_at: new Date().toISOString() }));
   };
+  const changePassword = async event => {
+    event.preventDefault();
+    setPasswordStatus('正在保存…');
+    try {
+      await accountService.changePassword(account.id, newPassword);
+      setNewPassword('');
+      setPasswordStatus('密码已更新，学习资料没有变化');
+    } catch (error) {
+      setPasswordStatus(error?.message || '密码更新失败，请重试');
+    }
+  };
   return (
     <section className="me-page" aria-labelledby="me-title">
       <div className="section-intro"><p className="eyebrow">LOCAL FIRST</p><h1 id="me-title">我的本地空间</h1><p>账户、身体感受与报告保存在这个浏览器；本机桥只负责临时连接 Calendar 和你选择的 AI 服务。</p></div>
@@ -72,6 +86,11 @@ export default function MyPage({ account, api, dailyAPI, bridge, onResolveProjec
           <p className="panel-number">01</p><h2>当前账户</h2>
           <div className="identity-name"><span>{account.display_name.slice(0, 1)}</span><div><strong>{account.display_name}</strong><small>@{account.username}</small></div></div>
           <p className="plain-warning">这是浏览器内的便捷隔离，不是加密保险箱。能访问此浏览器资料的人也可能读取这些本地数据。</p>
+          <form className="password-reset" onSubmit={changePassword}>
+            <label htmlFor="new-local-password">修改本机密码</label>
+            <div><input id="new-local-password" type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={4} autoComplete="new-password" placeholder="输入至少 4 位的新密码" required/><button className="secondary-btn" type="submit">保存密码</button></div>
+            <small aria-live="polite">{passwordStatus || '仅修改当前浏览器里的账户，不影响学习资料。'}</small>
+          </form>
           <div className="button-row"><button className="gold-btn" type="button" onClick={exportData}>备份全部数据</button><button className="secondary-btn" type="button" onClick={() => fileRef.current?.click()}>导入备份</button></div>
           <input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={importData}/>
         </article>
