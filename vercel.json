@@ -4,7 +4,7 @@
   "outputDirectory": "web/dist",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/auth/callback", "destination": "/index.html" }
+    { "source": "/auth/callback", "destination": "/" }
   ],
   "headers": [
     {
