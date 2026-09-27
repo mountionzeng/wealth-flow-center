@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { consentMatches } from '../../dailyBalance.js';
+import { buildWeeklyTimeline, buildWorkTimeline } from '../../weeklyTimeline.js';
 
 const pad = value => String(value).padStart(2, '0');
 const localDate = (value = new Date()) => `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
@@ -38,7 +39,28 @@ const projectionLabel = state => ({
   not_synced: '尚未同步',
 }[state] || '本地已确认');
 
-export default function TodayPage({ dailyAPI, bridge, quests, onCompleteActivity, onNavigate, onResolveProjection, projectionBusy, notify }) {
+function WeekTimeline({ title, eyebrow, days, total, emptyCopy, kind = 'learning' }) {
+  return <section className={`week-overview timeline-panel ${kind}`} aria-label={`${title}最近七天时间轴`}>
+    <header>
+      <div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>
+      <p>{total ? `已经留下 ${total} 条真实记录。` : emptyCopy}</p>
+    </header>
+    <ol className="week-overview-track" aria-label={`${title}最近七天时间轴`}>
+      {days.map(day => <li key={day.key} className={day.isToday ? 'today' : ''}>
+        <div className="week-overview-date"><span>{day.label}</span><time dateTime={day.key}>{day.dateLabel}</time></div>
+        <i aria-hidden="true"/>
+        <div className="week-overview-events">
+          {day.entries.length ? day.entries.map(entry => <article key={entry.id} className={entry.kind}>
+            <b>{entry.title}</b>
+            <span>{[entry.time, entry.minutes ? `${entry.minutes} 分钟` : '', entry.detail].filter(Boolean).join(' · ')}</span>
+          </article>) : <span className="week-overview-empty">留白</span>}
+        </div>
+      </li>)}
+    </ol>
+  </section>;
+}
+
+export default function TodayPage({ dailyAPI, bridge, quests, work, onCompleteActivity, onNavigate, onResolveProjection, projectionBusy, notify }) {
   const [daily, setDaily] = useState(() => dailyAPI.state());
   const [checkIn, setCheckIn] = useState(defaultCheckIn);
   const [busy, setBusy] = useState(false);
@@ -161,11 +183,15 @@ export default function TodayPage({ dailyAPI, bridge, quests, onCompleteActivity
   };
 
   const recent = [...daily.completions].slice(-4).reverse();
+  const weekDays = useMemo(() => buildWeeklyTimeline({ quests, daily, now: new Date() }), [daily, quests]);
+  const weekTotal = weekDays.reduce((sum, day) => sum + day.entries.length, 0);
+  const workDays = useMemo(() => buildWorkTimeline({ work, now: new Date() }), [work]);
+  const workTotal = workDays.reduce((sum, day) => sum + day.entries.length, 0);
   return (
-    <section className="today-page" aria-labelledby="today-title">
-      <div className="today-hero">
-        <div><p className="eyebrow">TODAY · {today}</p><h1 id="today-title">先问身体，<br/>再安排今天</h1><p>十秒签到，换一条养身建议和一条学习建议。计划写进日历，真实执行留给下一次参考。</p></div>
-        <div className="today-orbit" aria-hidden="true"><span>一养</span><i>身体</i><span>一学</span></div>
+    <section className="today-page" aria-label="今日">
+      <div className="timeline-duet">
+        <WeekTimeline title="知识与关照" eyebrow={`LEARNING · LAST 7 DAYS · ${today}`} days={weekDays} total={weekTotal} emptyCopy="还没有真实记录，留白也算一天。"/>
+        <WeekTimeline title="工作" eyebrow={`WORK · LAST 7 DAYS · ${today}`} days={workDays} total={workTotal} emptyCopy="完成一件工作后，它会出现在这里。" kind="work"/>
       </div>
       <div className="today-layout">
         <form className="checkin-panel" onSubmit={generate}>

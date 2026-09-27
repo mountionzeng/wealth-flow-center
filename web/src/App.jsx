@@ -10,10 +10,12 @@ import AppShell from './components/AppShell.jsx';
 import CompleteActivityDialog from './components/CompleteActivityDialog.jsx';
 import KnowledgePage from './features/knowledge/KnowledgePage.jsx';
 import KnowledgeWorkspace from './features/knowledge/KnowledgeWorkspace.jsx';
+import WorkPage from './features/work/WorkPage.jsx';
 import MyPage from './features/account/MyPage.jsx';
 import AuthCallback from './features/account/AuthCallback.jsx';
 import TodayPage from './features/today/TodayPage.jsx';
 import SpringWindPage from './features/springWind/SpringWindPage.jsx';
+import { buildWeeklyTimeline } from './weeklyTimeline.js';
 
 /* ── constants ───────────────────────────────────────── */
 const VTYPES = ['course','review','skill','practice','knowledge','homework'];
@@ -34,7 +36,7 @@ const BARCOLS = ['#d2c4a1','#9bb0a5','#9fb3c1','#bfae97','#c8b29f','#b3aac4','#b
 
 /* ── normalize ───────────────────────────────────────── */
 const normPlayer = p => { if(!p||typeof p!=='object') p={}; return {level:Number(p.level)||1,xp:Number(p.xp)||0,xp_target:p.xp_target!=null?Number(p.xp_target):null,wealth:Number(p.wealth)||0,streak:Number(p.streak)||0,total_done:Number(p.total_done)||0,total_minutes:Number(p.total_minutes)||0}; };
-const normQuest = q => { if(!q||typeof q!=='object'||q.id==null) return null; return {id:q.id,title:typeof q.title==='string'&&q.title?q.title:'(无标题)',task_type:safeType(q.task_type),course_name:typeof q.course_name==='string'?q.course_name:'',start:typeof q.start==='string'?q.start:'',end:typeof q.end==='string'?q.end:'',created_at:typeof q.created_at==='string'?q.created_at:'',completed_at:q.completed_at??null,status:typeof q.status==='string'?q.status:'todo',reward_xp:q.reward_xp!=null?Number(q.reward_xp):null,reward_wealth:q.reward_wealth!=null?Number(q.reward_wealth):null,duration_minutes:q.duration_minutes!=null?Number(q.duration_minutes):null,label:q.label??'',calendar_sync_status:safeSync(q.calendar_sync_status),calendar_sync_message:typeof q.calendar_sync_message==='string'?q.calendar_sync_message:''}; };
+const normQuest = q => { if(!q||typeof q!=='object'||q.id==null) return null; return {id:q.id,title:typeof q.title==='string'&&q.title?q.title:'(无标题)',task_type:safeType(q.task_type),course_name:typeof q.course_name==='string'?q.course_name:'',start:typeof q.start==='string'?q.start:'',end:typeof q.end==='string'?q.end:'',created_at:typeof q.created_at==='string'?q.created_at:'',completed_at:q.completed_at??null,actual_start:q.actual_start??null,actual_end:q.actual_end??null,actual_duration_minutes:q.actual_duration_minutes!=null?Number(q.actual_duration_minutes):null,feeling:typeof q.feeling==='string'?q.feeling:'',status:typeof q.status==='string'?q.status:'todo',reward_xp:q.reward_xp!=null?Number(q.reward_xp):null,reward_wealth:q.reward_wealth!=null?Number(q.reward_wealth):null,duration_minutes:q.duration_minutes!=null?Number(q.duration_minutes):null,label:q.label??'',calendar_sync_status:safeSync(q.calendar_sync_status),calendar_sync_message:typeof q.calendar_sync_message==='string'?q.calendar_sync_message:''}; };
 const normCharts = c => {
   if(!c||typeof c!=='object') return {days:[],day_minutes:[],type_minutes:{},course_minutes:[]};
   return {
@@ -717,23 +719,22 @@ const WeeklyOutline = ({weekly_outline=[]}) => {
   );
 };
 
-/* ── FloatReminder ───────────────────────────────────── */
-const FloatReminder = ({quests=[],serverTime='',compact=false}) => {
-  const now=useNow(serverTime);
-  const [mini,setMini]=useState(()=>compact||(typeof window!=='undefined'&&window.matchMedia('(max-width:700px)').matches));
+/* ── WeeklyTimeline ──────────────────────────────────── */
+const WeeklyTimeline = ({quests=[],dailyAPI,serverTime='',compact=false}) => {
+  const [mini,setMini]=useState(true);
   useEffect(()=>{if(compact)setMini(true);},[compact]);
-  const isDone=q=>q?.status==='done'||!!q?.completed_at;
-  const active=quests.find(q=>!isDone(q)&&parseT(q.start)?.getTime()<=now&&parseT(q.end)?.getTime()>=now);
-  const upcoming=quests.filter(q=>!isDone(q)&&parseT(q.start)?.getTime()>now).sort((a,b)=>parseT(a.start)?.getTime()-parseT(b.start)?.getTime())[0];
-  const lastDone=quests.filter(isDone).map(q=>parseT(q.completed_at||q.end||q.start)).filter(Boolean).sort((a,b)=>b.getTime()-a.getTime())[0];
-  const cdLabel=active?fmtMs(parseT(active.end).getTime()-now):'—';
-  const idleLabel=active?'进行中':(lastDone?fmtAgo(now-lastDone.getTime()):'暂无记录');
+  const now=useMemo(()=>{
+    const parsed=parseT(serverTime);
+    return parsed??new Date();
+  },[serverTime]);
+  const days=buildWeeklyTimeline({quests,daily:dailyAPI?.state?.()??{},now});
+  const total=days.reduce((sum,day)=>sum+day.entries.length,0);
   if(compact||mini) return(
     <div className={`float-widget ${compact?'knowledge-compact':''}`}>
       <div className="float-inner" style={{cursor:compact?'default':'pointer'}} onClick={()=>{if(!compact)setMini(false)}}>
         <div className="float-mini">
-          <span className="lbl">学习悬浮提醒</span>
-          <span className="cd">{active?cdLabel:'无进行中'}</span>
+          <span className="lbl">近七日行迹</span>
+          <span className="cd">{total ? `${total} 条记录` : '这一周留白'}</span>
         </div>
       </div>
     </div>
@@ -743,20 +744,21 @@ const FloatReminder = ({quests=[],serverTime='',compact=false}) => {
       <div className="float-inner">
         <div className="float-top">
           <div className="float-title">
-            <span className="float-title-txt"><CandleIcon size={24} animate={!!active}/>学习悬浮提醒</span>
-            <button className="float-min" onClick={()=>setMini(true)}>—</button>
+            <span className="float-title-txt"><span className="timeline-title-mark">七</span><span>近七日行迹<small>{total} 条真实记录</small></span></span>
+            <button className="float-min" type="button" aria-label="收起近七日行迹" onClick={()=>setMini(true)}>—</button>
           </div>
-          <div className="float-row">
-            <div className="float-col"><div className="lbl">本次学习剩余</div><div className={`val ${active?'cd':''}`}>{cdLabel}</div></div>
-            <div className="float-col"><div className="lbl">未学习时长</div><div className="val">{idleLabel}</div></div>
-          </div>
-          <div className="float-divider"/>
-          <div className="float-info">
-            <div className="info-lbl">当前</div>
-            <div className="info-val">{active?.title??'无进行中任务'}</div>
-            <div className="info-lbl">下次学习</div>
-            <div className="info-val">{upcoming?`${(upcoming.start??'').slice(11,16)} ${upcoming.title??''}`:'暂无待学习任务'}</div>
-          </div>
+          <ol className="week-timeline" aria-label="最近七天的真实记录">
+            {days.map(day=><li key={day.key} className={day.isToday?'today':''}>
+              <div className="timeline-day"><strong>{day.label}</strong><span>{day.dateLabel}</span></div>
+              <div className="timeline-track"/>
+              <div className="timeline-entries">
+                {day.entries.length?day.entries.map(entry=><article key={entry.id} className={entry.kind}>
+                  <div><b>{entry.title}</b>{entry.minutes&&<span>{entry.minutes} 分钟</span>}</div>
+                  {(entry.time||entry.detail)&&<small>{[entry.time,entry.detail].filter(Boolean).join(' · ')}</small>}
+                </article>):<span className="timeline-empty">留白</span>}
+              </div>
+            </li>)}
+          </ol>
         </div>
       </div>
     </div>
@@ -931,6 +933,7 @@ function App({account,api,dailyAPI,bridge,onLogout}){
   const[completion,setCompletion]=useState(null);
   const[dailyVersion,setDailyVersion]=useState(0);
   const[knowledgeVersion,setKnowledgeVersion]=useState(0);
+  const[workVersion,setWorkVersion]=useState(0);
   const[projectionBusy,setProjectionBusy]=useState(new Set());
   const formPanelRef=useRef(null);
   const [formPanelHeight,setFormPanelHeight]=useState(0);
@@ -1142,7 +1145,7 @@ function App({account,api,dailyAPI,bridge,onLogout}){
       <div className="spin-wrap">
         <CandleIcon size={40} animate/>
         <div className="ring" style={{marginTop:8}}/>
-        <div className="spin-lbl">财富流通中心</div>
+        <div className="spin-lbl">日富一日</div>
       </div>
     </>
   );
@@ -1176,12 +1179,13 @@ function App({account,api,dailyAPI,bridge,onLogout}){
       <SilkBg/>
       <CursorStars/>
       <AppShell section={section} onSectionChange={setSection} account={account}>
-        {section==='today'&&<TodayPage key={`today-${dailyVersion}`} dailyAPI={dailyAPI} bridge={bridge} quests={d.quests??[]} onCompleteActivity={setCompletion} onNavigate={navigateTo} onResolveProjection={resolveProjection} projectionBusy={projectionBusy} notify={toast$}/>} 
+        {section==='today'&&<TodayPage key={`today-${dailyVersion}-${workVersion}`} dailyAPI={dailyAPI} bridge={bridge} quests={d.quests??[]} work={api.workState()} onCompleteActivity={setCompletion} onNavigate={navigateTo} onResolveProjection={resolveProjection} projectionBusy={projectionBusy} notify={toast$}/>}
         {section==='spring-wind'&&<SpringWindPage dailyAPI={dailyAPI} bridge={bridge} quests={d.quests??[]} notify={toast$}/>} 
         {section==='knowledge'&&knowledge}
-        {section==='me'&&<MyPage key={`me-${dailyVersion}`} account={account} api={api} dailyAPI={dailyAPI} bridge={bridge} onResolveProjection={resolveProjection} projectionBusy={projectionBusy} onImported={()=>{load(true);setDailyVersion(value=>value+1);toast$('数据已导入');}} onLogout={onLogout}/>} 
+        {section==='work'&&<WorkPage api={api} notify={toast$} onWorkChange={()=>setWorkVersion(value=>value+1)}/>}
+        {section==='me'&&<MyPage key={`me-${dailyVersion}`} account={account} api={api} dailyAPI={dailyAPI} bridge={bridge} onResolveProjection={resolveProjection} projectionBusy={projectionBusy} onImported={()=>{load(true);setDailyVersion(value=>value+1);setWorkVersion(value=>value+1);toast$('数据已导入');}} onLogout={onLogout}/>}
       </AppShell>
-      <FloatReminder quests={d.quests??[]} serverTime={d.server_time} compact={section==='knowledge'}/>
+      <WeeklyTimeline quests={d.quests??[]} dailyAPI={dailyAPI} serverTime={d.server_time} compact={section==='knowledge'||section==='work'}/>
       {completion&&<CompleteActivityDialog activity={completion} onCancel={()=>setCompletion(null)} onConfirm={completeActivity}/>} 
       {confirm&&<Confirm msg={confirm.msg} onYes={doDelete} onNo={()=>setConf(null)}/>} 
       {toast&&<Toast key={toast.k} msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>} 

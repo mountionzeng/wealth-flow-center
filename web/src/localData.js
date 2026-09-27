@@ -23,6 +23,14 @@ import {
   upsertObsidianTaskDraft,
   updateKnowledgeNote,
 } from './knowledgeData.js';
+import {
+  addWorkProject,
+  addWorkTask,
+  createWorkState,
+  normalizeWorkState,
+  setWorkTaskCompleted,
+  updateWorkTask,
+} from './workData.js';
 
 const ACCOUNT_KEY = 'wealth-center.accounts.v1';
 const SESSION_KEY = 'wealth-center.session.v1';
@@ -55,6 +63,7 @@ const defaultState = () => ({
   quests: [],
   daily_balance: createDailyBalanceState(),
   knowledge_base: createKnowledgeState(),
+  work_base: createWorkState(),
 });
 
 const safeJSON = (raw, fallback) => {
@@ -203,6 +212,7 @@ const normalizeState = raw => {
     next_id: Math.max(Number(source.next_id) || 1, ...quests.map(row => Number(row.id) + 1 || 1)),
     daily_balance: normalizeDailyBalanceState(source.daily_balance),
     knowledge_base: normalizeKnowledgeState(source.knowledge_base),
+    work_base: normalizeWorkState(source.work_base),
   };
 };
 
@@ -514,6 +524,42 @@ export const createLocalAPI = (accountId, storage = globalThis.localStorage, loc
       const state = readState(accountId, storage);
       state.knowledge_base = removeObsidianTaskDraft(state.knowledge_base, sourceKey);
       return normalizeKnowledgeState(writeState(accountId, storage, state).knowledge_base);
+    });
+  },
+
+  workState() {
+    return normalizeWorkState(readState(accountId, storage).work_base);
+  },
+
+  async createWorkProject(input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.work_base = addWorkProject(state.work_base, input);
+      return normalizeWorkState(writeState(accountId, storage, state).work_base);
+    });
+  },
+
+  async createWorkTask(projectId, input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.work_base = addWorkTask(state.work_base, projectId, input);
+      return normalizeWorkState(writeState(accountId, storage, state).work_base);
+    });
+  },
+
+  async updateWorkTask(projectId, taskId, input) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.work_base = updateWorkTask(state.work_base, projectId, taskId, input);
+      return normalizeWorkState(writeState(accountId, storage, state).work_base);
+    });
+  },
+
+  async setWorkTaskCompleted(projectId, taskId, completed) {
+    return withAccountLock(accountId, lockManager, () => {
+      const state = readState(accountId, storage);
+      state.work_base = setWorkTaskCompleted(state.work_base, projectId, taskId, completed);
+      return normalizeWorkState(writeState(accountId, storage, state).work_base);
     });
   },
 

@@ -13,9 +13,11 @@ export const buildMigrationSummary = async rawState => {
   const quests = snapshot.quests;
   const daily = snapshot.daily_balance;
   const knowledge = snapshot.knowledge_base;
+  const work = snapshot.work_base;
   const completed = quests.filter(quest => quest.status === 'done');
   const totalMinutes = completed.reduce((total, quest) => total + Math.max(0, Number(quest.actual_duration_minutes ?? quest.duration_minutes) || 0), 0);
   const cards = knowledge.notes.reduce((total, note) => total + note.review_cards.length, 0);
+  const workTasks = work.projects.flatMap(project => project.tasks);
 
   return {
     schema_version: 1,
@@ -26,6 +28,7 @@ export const buildMigrationSummary = async rawState => {
       spring_wind_reports: category(daily.spring_wind?.report ? 1 : 0, latest([daily.spring_wind?.report?.created_at, daily.spring_wind?.report?.generated_at])),
       knowledge_notes: category(knowledge.notes.length, latest(knowledge.notes.map(note => note.updated_at))),
       review_cards: category(cards, latest(knowledge.notes.map(note => note.updated_at))),
+      work_records: category(workTasks.length, latest(workTasks.map(task => task.completed_at || task.updated_at || task.created_at))),
     },
     content_hash: await cloudContentHash(snapshot),
   };

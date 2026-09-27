@@ -1,5 +1,6 @@
 import { normalizeDailyBalanceState, preparePortableDailyBalance } from './dailyBalance.js';
 import { normalizeKnowledgeState } from './knowledgeData.js';
+import { normalizeWorkState } from './workData.js';
 
 export const CLOUD_SCHEMA_VERSION = 1;
 
@@ -8,7 +9,7 @@ const clone = value => globalThis.structuredClone
   : JSON.parse(JSON.stringify(value));
 
 const requiredCloudKeys = ['schema_version', 'player', 'next_id', 'quests', 'daily_balance', 'knowledge_base'];
-const allowedCloudKeys = new Set(requiredCloudKeys);
+const allowedCloudKeys = new Set([...requiredCloudKeys, 'work_base']);
 
 const stableValue = value => {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -69,6 +70,7 @@ export const splitAccountState = raw => {
     quests: Array.isArray(source.quests) ? clone(source.quests) : [],
     daily_balance: daily,
     knowledge_base: portableKnowledge(source.knowledge_base),
+    work_base: normalizeWorkState(source.work_base),
   };
   return {
     snapshot: validateCloudSnapshot(snapshot),
@@ -90,6 +92,7 @@ export const validateCloudSnapshot = raw => {
   }
   const daily = normalizeDailyBalanceState(raw.daily_balance);
   const knowledge = normalizeKnowledgeState(raw.knowledge_base);
+  const work = normalizeWorkState(raw.work_base);
   if (daily.projections.length || daily.calendar_preferences.selected_calendars.length || Object.values(daily.consent.purposes).some(Boolean)) {
     throw new Error('云端资料不能包含设备连接信息');
   }
@@ -106,6 +109,7 @@ export const validateCloudSnapshot = raw => {
     quests: clone(raw.quests),
     daily_balance: daily,
     knowledge_base: knowledge,
+    work_base: work,
   };
 };
 
@@ -143,5 +147,6 @@ export const mergeCloudSnapshot = (rawSnapshot, rawOverlay = {}) => {
     quests: clone(snapshot.quests),
     daily_balance: normalizeDailyBalanceState(daily),
     knowledge_base: normalizeKnowledgeState(knowledge),
+    work_base: normalizeWorkState(snapshot.work_base),
   };
 };

@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_SECTION, normalizeSection, sectionFromHash, sectionHash, SECTIONS } from './navigation.js';
 
-test('four primary sections stay stable and unknown routes fall back to today', () => {
-  assert.deepEqual(SECTIONS.map(item => item.id), ['today', 'spring-wind', 'knowledge', 'me']);
+test('five primary sections stay stable and unknown routes fall back to today', () => {
+  assert.deepEqual(SECTIONS.map(item => item.id), ['today', 'spring-wind', 'knowledge', 'work', 'me']);
   assert.equal(DEFAULT_SECTION, 'today');
   assert.equal(normalizeSection('knowledge'), 'knowledge');
+  assert.equal(normalizeSection('work'), 'work');
   assert.equal(normalizeSection('unknown'), 'today');
 });
 

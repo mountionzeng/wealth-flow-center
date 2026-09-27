@@ -10,6 +10,7 @@ const state = {
   ],
   daily_balance: { check_ins: [{ id: 'c1', date: '2026-09-10' }], spring_wind: { report: { content: 'private text' } } },
   knowledge_base: { notes: [{ id: 1, content: 'private note', review_cards: [{ id: 'card', question: '问题', answer: '答案' }] }] },
+  work_base: { projects: [{ id: 1, title: '项目', tasks: [{ id: 1, title: '完成上线', status: 'done', completed_at: '2026-09-10T09:00:00.000Z' }] }] },
 };
 
 test('creates a content-free migration summary with counts, minutes and freshness', async () => {
@@ -21,6 +22,7 @@ test('creates a content-free migration summary with counts, minutes and freshnes
   assert.equal(summary.categories.spring_wind_reports.count, 1);
   assert.equal(summary.categories.knowledge_notes.count, 1);
   assert.equal(summary.categories.review_cards.count, 1);
+  assert.equal(summary.categories.work_records.count, 1);
   assert.equal(JSON.stringify(summary).includes('private text'), false);
   assert.equal(JSON.stringify(summary).includes('private note'), false);
   assert.match(summary.content_hash, /^[a-f0-9]{64}$/);
